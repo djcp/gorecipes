@@ -27,9 +27,21 @@ func runShow(_ *cobra.Command, args []string) error {
 		return fmt.Errorf("recipe not found: %w", err)
 	}
 
-	fmt.Print(ui.RenderRecipeDetail(recipe, termWidth()))
-	fmt.Println(ui.MutedStyle.Render(fmt.Sprintf("  ID: %d", recipe.ID)))
-	fmt.Println()
+	goHome, goAdd, searchQuery, err := ui.RunDetailUI(recipe)
+	if err != nil {
+		return err
+	}
+
+	if goAdd {
+		return runAdd(nil, nil)
+	}
+
+	if goHome {
+		// User chose "home" from the detail view — open the interactive list,
+		// carrying over any search query they typed in the detail view's search bar.
+		listQuery = searchQuery
+		return runList(nil, nil)
+	}
 
 	return nil
 }

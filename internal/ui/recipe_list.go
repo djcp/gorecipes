@@ -23,6 +23,7 @@ type ListModel struct {
 	// Set to > 0 when the user pressed Enter to view a recipe.
 	selectedID int64
 	quitting   bool
+	goAdd      bool
 }
 
 // NewListModel creates a ListModel from a slice of recipes.
@@ -38,6 +39,9 @@ func NewListModel(recipes []models.Recipe) ListModel {
 
 // SelectedID returns the recipe ID the user selected (0 if none).
 func (m ListModel) SelectedID() int64 { return m.selectedID }
+
+// GoAdd returns true when the user pressed "a" to add a new recipe.
+func (m ListModel) GoAdd() bool { return m.goAdd }
 
 func (m ListModel) Init() tea.Cmd { return nil }
 
@@ -84,6 +88,9 @@ func (m ListModel) handleNavKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "q", "esc":
 		m.quitting = true
+		return m, tea.Quit
+	case "a":
+		m.goAdd = true
 		return m, tea.Quit
 	case "/":
 		m.typing = true
@@ -194,19 +201,29 @@ func (m ListModel) View() string {
 }
 
 func renderBanner(width int) string {
-	title := lipgloss.NewStyle().
+	appName := lipgloss.NewStyle().
 		Bold(true).
 		Foreground(ColorPrimary).
-		Padding(1, 2).
 		Render("🍳  gorecipes")
 
-	border := lipgloss.NewStyle().
+	addHint := MutedStyle.Render("a  add")
+
+	// contentWidth is the space inside the border minus left+right padding (2 each).
+	contentWidth := width - 6
+	gap := contentWidth - lipgloss.Width(appName) - lipgloss.Width(addHint)
+	if gap < 1 {
+		gap = 1
+	}
+
+	title := lipgloss.NewStyle().
+		Padding(1, 2).
+		Render(appName + strings.Repeat(" ", gap) + addHint)
+
+	return lipgloss.NewStyle().
 		Border(lipgloss.NormalBorder(), false, false, true, false).
 		BorderForeground(ColorBorder).
 		Width(width - 2).
 		Render(title)
-
-	return border
 }
 
 func renderSearchBar(query string, typing bool, width int) string {
@@ -266,6 +283,7 @@ func renderFooter(width int) string {
 		"↑/↓ navigate",
 		"/ search",
 		"enter view",
+		"a add",
 		"q quit",
 	}
 	line := "  " + strings.Join(keys, "   ")
@@ -288,14 +306,15 @@ func truncate(s string, max int) string {
 	return string(runes[:max-1]) + "…"
 }
 
-// RunListUI runs the interactive recipe browser and returns the selected recipe ID (or 0).
-func RunListUI(recipes []models.Recipe) (int64, error) {
+// RunListUI runs the interactive recipe browser.
+// Returns the selected recipe ID (or 0), whether the user pressed "a" to add, and any error.
+func RunListUI(recipes []models.Recipe) (int64, bool, error) {
 	m := NewListModel(recipes)
 	p := tea.NewProgram(m, tea.WithAltScreen())
 	final, err := p.Run()
 	if err != nil {
-		return 0, err
+		return 0, false, err
 	}
 	finalModel := final.(ListModel)
-	return finalModel.SelectedID(), nil
+	return finalModel.SelectedID(), finalModel.GoAdd(), nil
 }

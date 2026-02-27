@@ -12,8 +12,8 @@ import (
 )
 
 var (
-	listQuery   string
-	listStatus  string
+	listQuery  string
+	listStatus string
 )
 
 var listCmd = &cobra.Command{
@@ -36,20 +36,18 @@ func runList(_ *cobra.Command, _ []string) error {
 		StatusFilter: listStatus,
 	}
 
-	recipes, err := db.ListRecipes(sqlDB, filter)
-	if err != nil {
-		return fmt.Errorf("loading recipes: %w", err)
-	}
-
-	if len(recipes) == 0 {
-		fmt.Println(ui.MutedStyle.Render("\n  No recipes found."))
-		fmt.Println(ui.MutedStyle.Render("  Add one with: gorecipes add <url>"))
-		fmt.Println()
-		return nil
-	}
-
-	// Non-interactive mode: plain output when not a TTY or when query is set.
+	// Non-interactive path: flag query set, or stdout is not a TTY.
 	if listQuery != "" || !isTerminal() {
+		recipes, err := db.ListRecipes(sqlDB, filter)
+		if err != nil {
+			return fmt.Errorf("loading recipes: %w", err)
+		}
+		if len(recipes) == 0 {
+			fmt.Println(ui.MutedStyle.Render("\n  No recipes found."))
+			fmt.Println(ui.MutedStyle.Render("  Add one with: gorecipes add <url>"))
+			fmt.Println()
+			return nil
+		}
 		fmt.Printf("\n  Found %d recipe(s):\n\n", len(recipes))
 		for _, r := range recipes {
 			courses := strings.Join(r.TagsByContext("courses"), ", ")
@@ -59,22 +57,61 @@ func runList(_ *cobra.Command, _ []string) error {
 		return nil
 	}
 
-	// Interactive TUI browser.
-	selectedID, err := ui.RunListUI(recipes)
-	if err != nil {
-		return err
-	}
+	// Interactive path: loop between the list browser and recipe detail view.
+	// When the user selects "home" from a recipe, control returns here and the
+	// list re-opens, optionally with a search query carried over from the detail view.
+	for {
+		recipes, err := db.ListRecipes(sqlDB, filter)
+		if err != nil {
+			return fmt.Errorf("loading recipes: %w", err)
+		}
 
-	if selectedID > 0 {
+		if len(recipes) == 0 {
+			fmt.Println(ui.MutedStyle.Render("\n  No recipes found."))
+			fmt.Println(ui.MutedStyle.Render("  Add one with: gorecipes add <url>"))
+			fmt.Println()
+			return nil
+		}
+
+		selectedID, goAdd, err := ui.RunListUI(recipes)
+		if err != nil {
+			return err
+		}
+		if goAdd {
+			if err := runAdd(nil, nil); err != nil {
+				return err
+			}
+			filter.Query = ""
+			continue
+		}
+		if selectedID == 0 {
+			// User quit from the list.
+			break
+		}
+
 		recipe, err := db.GetRecipe(sqlDB, selectedID)
 		if err != nil {
 			return err
 		}
-		// Clear screen then show detail.
-		fmt.Print("\033[2J\033[H")
-		fmt.Print(ui.RenderRecipeDetail(recipe, termWidth()))
-		fmt.Println(ui.MutedStyle.Render(fmt.Sprintf("  ID: %d  ·  gorecipes show %d", recipe.ID, recipe.ID)))
-		fmt.Println()
+
+		goHome, goAdd, searchQuery, err := ui.RunDetailUI(recipe)
+		if err != nil {
+			return err
+		}
+		if goAdd {
+			if err := runAdd(nil, nil); err != nil {
+				return err
+			}
+			filter.Query = ""
+			continue
+		}
+		if !goHome {
+			// User quit from the detail view.
+			break
+		}
+
+		// User chose "home" — loop back to the list, applying any search they typed.
+		filter.Query = searchQuery
 	}
 
 	return nil
