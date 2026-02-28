@@ -22,12 +22,17 @@ func Open(dbPath string) (*sqlx.DB, error) {
 		return nil, fmt.Errorf("creating database directory: %w", err)
 	}
 
-	db, err := sqlx.Open("sqlite", dbPath+"?_foreign_keys=on&_journal_mode=WAL")
+	db, err := sqlx.Open("sqlite", dbPath+"?_journal_mode=WAL")
 	if err != nil {
 		return nil, fmt.Errorf("opening database: %w", err)
 	}
 
 	db.SetMaxOpenConns(1) // SQLite doesn't support concurrent writers.
+
+	if _, err := db.Exec("PRAGMA foreign_keys = ON"); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("enabling foreign keys: %w", err)
+	}
 
 	if err := runMigrations(db); err != nil {
 		db.Close()
@@ -39,11 +44,15 @@ func Open(dbPath string) (*sqlx.DB, error) {
 
 // OpenMemory opens an in-memory SQLite database for testing.
 func OpenMemory() (*sqlx.DB, error) {
-	db, err := sqlx.Open("sqlite", ":memory:?_foreign_keys=on")
+	db, err := sqlx.Open("sqlite", ":memory:")
 	if err != nil {
 		return nil, err
 	}
 	db.SetMaxOpenConns(1)
+	if _, err := db.Exec("PRAGMA foreign_keys = ON"); err != nil {
+		db.Close()
+		return nil, err
+	}
 	if err := runMigrations(db); err != nil {
 		db.Close()
 		return nil, err

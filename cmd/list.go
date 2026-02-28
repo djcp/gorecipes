@@ -66,16 +66,31 @@ func runList(_ *cobra.Command, _ []string) error {
 			return fmt.Errorf("loading recipes: %w", err)
 		}
 
-		if len(recipes) == 0 {
+		if len(recipes) == 0 && filter.Query == "" && filter.StatusFilter == "" {
+			// Database is genuinely empty — no point opening the TUI.
 			fmt.Println(ui.MutedStyle.Render("\n  No recipes found."))
 			fmt.Println(ui.MutedStyle.Render("  Add one with: gorecipes add <url>"))
 			fmt.Println()
 			return nil
 		}
 
-		selectedID, goAdd, err := ui.RunListUI(recipes)
+		selectedID, goAdd, goHome, searchConfirmed, searchQuery, deleteID, err := ui.RunListUI(recipes, filter.Query)
 		if err != nil {
 			return err
+		}
+		if goHome {
+			filter.Query = ""
+			continue // re-fetch from DB without filter
+		}
+		if searchConfirmed {
+			filter.Query = searchQuery
+			continue // re-fetch from DB with new filter
+		}
+		if deleteID > 0 {
+			if err := db.DeleteRecipe(sqlDB, deleteID); err != nil {
+				return fmt.Errorf("deleting recipe: %w", err)
+			}
+			continue // re-fetch list without the deleted recipe
 		}
 		if goAdd {
 			if err := runAdd(nil, nil); err != nil {
@@ -94,9 +109,17 @@ func runList(_ *cobra.Command, _ []string) error {
 			return err
 		}
 
-		goHome, goAdd, searchQuery, err := ui.RunDetailUI(recipe)
+		var deleteConfirmed bool
+		goHome, goAdd, deleteConfirmed, searchQuery, err = ui.RunDetailUI(recipe)
 		if err != nil {
 			return err
+		}
+		if deleteConfirmed {
+			if err := db.DeleteRecipe(sqlDB, recipe.ID); err != nil {
+				return fmt.Errorf("deleting recipe: %w", err)
+			}
+			filter.Query = ""
+			continue
 		}
 		if goAdd {
 			if err := runAdd(nil, nil); err != nil {

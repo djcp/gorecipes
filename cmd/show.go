@@ -27,9 +27,16 @@ func runShow(_ *cobra.Command, args []string) error {
 		return fmt.Errorf("recipe not found: %w", err)
 	}
 
-	goHome, goAdd, searchQuery, err := ui.RunDetailUI(recipe)
+	goHome, goAdd, deleteConfirmed, searchQuery, err := ui.RunDetailUI(recipe)
 	if err != nil {
 		return err
+	}
+
+	if deleteConfirmed {
+		if err := db.DeleteRecipe(sqlDB, recipe.ID); err != nil {
+			return fmt.Errorf("deleting recipe: %w", err)
+		}
+		return runList(nil, nil)
 	}
 
 	if goAdd {

@@ -82,9 +82,15 @@ func runAdd(_ *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	goHome2, goAdd2, searchQuery, err := ui.RunDetailUI(recipe)
+	goHome2, goAdd2, deleteConfirmed, searchQuery, err := ui.RunDetailUI(recipe)
 	if err != nil {
 		return err
+	}
+	if deleteConfirmed {
+		if err := db.DeleteRecipe(sqlDB, recipe.ID); err != nil {
+			return fmt.Errorf("deleting recipe: %w", err)
+		}
+		return runList(nil, nil)
 	}
 	if goAdd2 {
 		return runAdd(nil, nil)

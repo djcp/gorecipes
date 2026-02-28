@@ -11,28 +11,35 @@ import (
 
 // ListModel is a Bubbletea model for the interactive recipe browser.
 type ListModel struct {
-	recipes  []models.Recipe
-	filtered []models.Recipe
-	cursor   int
-	query    string
-	typing   bool
-	width    int
-	height   int
-	offset   int // scroll offset
+	recipes []models.Recipe
+	cursor  int
+	query   string
+	typing  bool
+	width   int
+	height  int
+	offset  int // scroll offset
 
 	// Set to > 0 when the user pressed Enter to view a recipe.
-	selectedID int64
-	quitting   bool
-	goAdd      bool
+	selectedID      int64
+	quitting        bool
+	goAdd           bool
+	goHome          bool
+	searchConfirmed bool
+
+	// Delete confirmation state.
+	confirmingDelete bool
+	deleteTargetID   int64
+	deleteTargetName string
 }
 
 // NewListModel creates a ListModel from a slice of recipes.
-func NewListModel(recipes []models.Recipe) ListModel {
+// initialQuery pre-fills the search bar with an active filter when the list re-opens.
+func NewListModel(recipes []models.Recipe, initialQuery string) ListModel {
 	m := ListModel{
-		recipes:  recipes,
-		filtered: recipes,
-		width:    80,
-		height:   24,
+		recipes: recipes,
+		width:   80,
+		height:  24,
+		query:   initialQuery,
 	}
 	return m
 }
@@ -43,6 +50,18 @@ func (m ListModel) SelectedID() int64 { return m.selectedID }
 // GoAdd returns true when the user pressed "a" to add a new recipe.
 func (m ListModel) GoAdd() bool { return m.goAdd }
 
+// GoHome returns true when the user pressed "h" to go home (clear filter).
+func (m ListModel) GoHome() bool { return m.goHome }
+
+// SearchConfirmed returns true when the user pressed Enter to confirm a search.
+func (m ListModel) SearchConfirmed() bool { return m.searchConfirmed }
+
+// DeleteTargetID returns the recipe ID the user confirmed for deletion (0 if none).
+func (m ListModel) DeleteTargetID() int64 { return m.deleteTargetID }
+
+// Query returns the current search query.
+func (m ListModel) Query() string { return m.query }
+
 func (m ListModel) Init() tea.Cmd { return nil }
 
 func (m ListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -52,6 +71,9 @@ func (m ListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.height = msg.Height
 
 	case tea.KeyMsg:
+		if m.confirmingDelete {
+			return m.handleConfirmKey(msg)
+		}
 		if m.typing {
 			return m.handleTypingKey(msg)
 		}
@@ -65,21 +87,34 @@ func (m ListModel) handleTypingKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case tea.KeyEsc:
 		m.typing = false
 		m.query = ""
-		m.filtered = m.recipes
 		m.cursor = 0
 		m.offset = 0
 	case tea.KeyEnter:
 		m.typing = false
+		m.searchConfirmed = true
+		return m, tea.Quit
 	case tea.KeyBackspace, tea.KeyDelete:
 		if len(m.query) > 0 {
 			m.query = m.query[:len(m.query)-1]
-			m.applyFilter()
 		}
 	default:
 		if msg.Type == tea.KeyRunes {
 			m.query += string(msg.Runes)
-			m.applyFilter()
 		}
+	}
+	return m, nil
+}
+
+func (m ListModel) handleConfirmKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "y":
+		// deleteTargetID is already set; quitting signals confirmed deletion.
+		m.confirmingDelete = false
+		return m, tea.Quit
+	case "n", "esc", "ctrl+c":
+		m.confirmingDelete = false
+		m.deleteTargetID = 0
+		m.deleteTargetName = ""
 	}
 	return m, nil
 }
@@ -92,6 +127,15 @@ func (m ListModel) handleNavKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "a":
 		m.goAdd = true
 		return m, tea.Quit
+	case "h":
+		m.goHome = true
+		return m, tea.Quit
+	case "d":
+		if len(m.recipes) > 0 {
+			m.confirmingDelete = true
+			m.deleteTargetID = m.recipes[m.cursor].ID
+			m.deleteTargetName = m.recipes[m.cursor].Name
+		}
 	case "/":
 		m.typing = true
 	case "up", "k":
@@ -102,7 +146,7 @@ func (m ListModel) handleNavKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			}
 		}
 	case "down", "j":
-		if m.cursor < len(m.filtered)-1 {
+		if m.cursor < len(m.recipes)-1 {
 			m.cursor++
 			visible := m.visibleRows()
 			if m.cursor >= m.offset+visible {
@@ -110,8 +154,8 @@ func (m ListModel) handleNavKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			}
 		}
 	case "enter", " ":
-		if len(m.filtered) > 0 {
-			m.selectedID = m.filtered[m.cursor].ID
+		if len(m.recipes) > 0 {
+			m.selectedID = m.recipes[m.cursor].ID
 			return m, tea.Quit
 		}
 	case "ctrl+c":
@@ -121,34 +165,14 @@ func (m ListModel) handleNavKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m *ListModel) applyFilter() {
-	if m.query == "" {
-		m.filtered = m.recipes
-	} else {
-		q := strings.ToLower(m.query)
-		var out []models.Recipe
-		for _, r := range m.recipes {
-			if strings.Contains(strings.ToLower(r.Name), q) {
-				out = append(out, r)
-				continue
-			}
-			// Search ingredients.
-			for _, ing := range r.Ingredients {
-				if strings.Contains(strings.ToLower(ing.IngredientName), q) {
-					out = append(out, r)
-					break
-				}
-			}
-		}
-		m.filtered = out
-	}
-	m.cursor = 0
-	m.offset = 0
-}
 
 func (m ListModel) visibleRows() int {
-	// Header (3) + search bar (2) + footer (2) = 7 overhead lines.
-	v := m.height - 9
+	// Banner (4) + blank-before-footer (1) + footer (2) = 7 fixed overhead.
+	// When typing the bordered search bar adds 4 more lines (3-line box + 1 blank).
+	v := m.height - 7
+	if m.typing {
+		v -= 4
+	}
 	if v < 1 {
 		v = 1
 	}
@@ -162,30 +186,46 @@ func (m ListModel) View() string {
 	sb.WriteString(renderBanner(m.width))
 	sb.WriteString("\n")
 
-	// Search bar.
-	sb.WriteString(renderSearchBar(m.query, m.typing, m.width))
-	sb.WriteString("\n\n")
+	// Delete confirmation overlay — replaces list content and footer.
+	if m.confirmingDelete {
+		confirmContent := m.viewConfirm()
+		sb.WriteString(confirmContent)
+		// Fill remaining height so the footer stays pinned.
+		used := strings.Count(sb.String(), "\n")
+		if fill := m.height - used - 3; fill > 0 {
+			sb.WriteString(strings.Repeat("\n", fill))
+		}
+		sb.WriteString("\n")
+		sb.WriteString(renderConfirmFooter(m.width))
+		return sb.String()
+	}
 
-	if len(m.filtered) == 0 {
+	// Search bar — only visible while the user is actively typing.
+	if m.typing {
+		sb.WriteString(renderSearchBar(m.query, m.typing, m.width))
+		sb.WriteString("\n\n")
+	}
+
+	if len(m.recipes) == 0 {
 		sb.WriteString(MutedStyle.Render("  No recipes found."))
 		sb.WriteString("\n")
 	} else {
 		visible := m.visibleRows()
 		end := m.offset + visible
-		if end > len(m.filtered) {
-			end = len(m.filtered)
+		if end > len(m.recipes) {
+			end = len(m.recipes)
 		}
 
 		for i := m.offset; i < end; i++ {
-			r := m.filtered[i]
+			r := m.recipes[i]
 			selected := i == m.cursor
 			sb.WriteString(renderRecipeRow(r, selected, m.width))
 			sb.WriteString("\n")
 		}
 
 		// Scroll hint.
-		if len(m.filtered) > visible {
-			total := len(m.filtered)
+		if len(m.recipes) > visible {
+			total := len(m.recipes)
 			shown := fmt.Sprintf("  %d–%d of %d", m.offset+1, end, total)
 			sb.WriteString("\n")
 			sb.WriteString(MutedStyle.Render(shown))
@@ -283,7 +323,9 @@ func renderFooter(width int) string {
 		"↑/↓ navigate",
 		"/ search",
 		"enter view",
+		"d delete",
 		"a add",
+		"h home",
 		"q quit",
 	}
 	line := "  " + strings.Join(keys, "   ")
@@ -291,6 +333,41 @@ func renderFooter(width int) string {
 		Foreground(ColorMuted).
 		Border(lipgloss.NormalBorder(), true, false, false, false).
 		BorderForeground(ColorBorder).
+		Width(width - 2).
+		Render(line)
+}
+
+func (m ListModel) viewConfirm() string {
+	var sb strings.Builder
+	sb.WriteString("\n\n")
+
+	name := truncate(m.deleteTargetName, m.width-20)
+	inner := lipgloss.JoinVertical(lipgloss.Left,
+		lipgloss.NewStyle().Bold(true).Foreground(ColorError).Render("Delete recipe?"),
+		"",
+		lipgloss.NewStyle().Bold(true).Foreground(ColorPrimary).Render(name),
+		"",
+		MutedStyle.Render("This cannot be undone."),
+	)
+
+	box := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(ColorError).
+		Padding(1, 3).
+		Render(inner)
+
+	sb.WriteString(lipgloss.PlaceHorizontal(m.width, lipgloss.Center, box))
+	sb.WriteString("\n")
+	return sb.String()
+}
+
+func renderConfirmFooter(width int) string {
+	yKey := lipgloss.NewStyle().Bold(true).Foreground(ColorError).Render("y  delete")
+	line := "  " + yKey + "   " + MutedStyle.Render("esc  cancel")
+	return lipgloss.NewStyle().
+		Foreground(ColorMuted).
+		Border(lipgloss.NormalBorder(), true, false, false, false).
+		BorderForeground(ColorError).
 		Width(width - 2).
 		Render(line)
 }
@@ -307,14 +384,16 @@ func truncate(s string, max int) string {
 }
 
 // RunListUI runs the interactive recipe browser.
-// Returns the selected recipe ID (or 0), whether the user pressed "a" to add, and any error.
-func RunListUI(recipes []models.Recipe) (int64, bool, error) {
-	m := NewListModel(recipes)
+// Returns the selected recipe ID (or 0), whether the user pressed "a" to add,
+// whether the user pressed "h" to go home, whether the user confirmed a search,
+// the search query, the recipe ID confirmed for deletion (or 0), and any error.
+func RunListUI(recipes []models.Recipe, initialQuery string) (selectedID int64, goAdd bool, goHome bool, searchConfirmed bool, searchQuery string, deleteID int64, err error) {
+	m := NewListModel(recipes, initialQuery)
 	p := tea.NewProgram(m, tea.WithAltScreen())
-	final, err := p.Run()
-	if err != nil {
-		return 0, false, err
+	final, runErr := p.Run()
+	if runErr != nil {
+		return 0, false, false, false, "", 0, runErr
 	}
-	finalModel := final.(ListModel)
-	return finalModel.SelectedID(), finalModel.GoAdd(), nil
+	fm := final.(ListModel)
+	return fm.SelectedID(), fm.GoAdd(), fm.GoHome(), fm.SearchConfirmed(), fm.Query(), fm.DeleteTargetID(), nil
 }

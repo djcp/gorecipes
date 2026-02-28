@@ -63,6 +63,13 @@ func UpdateRecipeFields(db *sqlx.DB, r *models.Recipe) error {
 	return err
 }
 
+// DeleteRecipe permanently removes a recipe. Related rows in recipe_ingredients
+// and recipe_tags are removed automatically via ON DELETE CASCADE.
+func DeleteRecipe(db *sqlx.DB, id int64) error {
+	_, err := db.Exec(`DELETE FROM recipes WHERE id = ?`, id)
+	return err
+}
+
 // GetRecipe retrieves a recipe by ID with all associations loaded.
 func GetRecipe(db *sqlx.DB, id int64) (*models.Recipe, error) {
 	var r models.Recipe

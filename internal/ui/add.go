@@ -241,8 +241,6 @@ func (m AddModel) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m = m.startPipeline("", text)
 			return m, tea.Batch(waitForStep(m.stepCh), waitForAddDone(m.doneCh), tickCmd())
 		case "esc":
-			return m, tea.Quit
-		case "h":
 			m.goHome = true
 			return m, tea.Quit
 		}
@@ -253,9 +251,9 @@ func (m AddModel) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	// Input phase — URL mode.
 	switch msg.String() {
-	case "ctrl+c", "q", "esc":
+	case "ctrl+c":
 		return m, tea.Quit
-	case "h":
+	case "esc":
 		m.goHome = true
 		return m, tea.Quit
 	case "enter":
@@ -359,9 +357,9 @@ func (m AddModel) viewInput(contentHeight int) string {
 			BorderForeground(ColorPrimary).
 			Width(m.width - 6).
 			Padding(0, 1).
+			MarginLeft(2).
 			Render(prefix + inputContent)
 
-		sb.WriteString("  ")
 		sb.WriteString(bar)
 		sb.WriteString("\n")
 	}
@@ -403,7 +401,7 @@ func (m AddModel) viewProgress(contentHeight int) string {
 	return sb.String()
 }
 
-// renderAddBanner renders a "🍳  gorecipes / Add Recipe" banner.
+// renderAddBanner renders a "🍳  gorecipes / Add Recipe" banner with a right-aligned "a  add" hint.
 func renderAddBanner(width int) string {
 	breadcrumb := lipgloss.NewStyle().
 		Bold(true).
@@ -418,9 +416,18 @@ func renderAddBanner(width int) string {
 					Render("Add Recipe"),
 		)
 
+	addHint := MutedStyle.Render("a  add")
+
+	// contentWidth is the space inside the border minus left+right padding (2 each).
+	contentWidth := width - 6
+	gap := contentWidth - lipgloss.Width(breadcrumb) - lipgloss.Width(addHint)
+	if gap < 1 {
+		gap = 1
+	}
+
 	title := lipgloss.NewStyle().
 		Padding(1, 2).
-		Render(breadcrumb)
+		Render(breadcrumb + strings.Repeat(" ", gap) + addHint)
 
 	return lipgloss.NewStyle().
 		Border(lipgloss.NormalBorder(), false, false, true, false).
@@ -439,9 +446,9 @@ func renderAddFooter(pasteMode bool, phase addPhase, width int) string {
 		keys = []string{"a add another", "h home", "q quit"}
 	default:
 		if pasteMode {
-			keys = []string{"ctrl+d submit", "h home", "q quit"}
+			keys = []string{"ctrl+d submit", "esc back"}
 		} else {
-			keys = []string{"enter submit", "h home", "q quit"}
+			keys = []string{"enter submit", "esc back"}
 		}
 	}
 	line := "  " + strings.Join(keys, "   ")

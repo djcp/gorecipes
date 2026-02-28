@@ -249,6 +249,44 @@ func TestGetRecipeTags(t *testing.T) {
 	}
 }
 
+func TestDeleteRecipe(t *testing.T) {
+	d := openTestDB(t)
+
+	id, err := db.CreateRecipe(d, &models.Recipe{Name: "To Delete", Status: models.StatusPublished})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := db.DeleteRecipe(d, id); err != nil {
+		t.Fatalf("DeleteRecipe() error: %v", err)
+	}
+
+	_, err = db.GetRecipe(d, id)
+	if err == nil {
+		t.Error("expected error after deleting recipe, got nil")
+	}
+}
+
+func TestDeleteRecipe_CascadesIngredients(t *testing.T) {
+	d := openTestDB(t)
+
+	recipeID, _ := db.CreateRecipe(d, &models.Recipe{Name: "Test", Status: models.StatusDraft})
+	ingID, _ := db.FindOrCreateIngredient(d, "butter")
+	_ = db.InsertRecipeIngredient(d, &models.RecipeIngredient{RecipeID: recipeID, IngredientID: ingID})
+
+	if err := db.DeleteRecipe(d, recipeID); err != nil {
+		t.Fatal(err)
+	}
+
+	ris, err := db.GetRecipeIngredients(d, recipeID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(ris) != 0 {
+		t.Errorf("expected 0 ingredients after recipe delete, got %d", len(ris))
+	}
+}
+
 func TestListRecipes_PublishedOnly(t *testing.T) {
 	d := openTestDB(t)
 

@@ -51,9 +51,11 @@ type DetailModel struct {
 	focus detailFocus
 	query string // search bar text (carried back to the list on "home")
 
-	goHome      bool
-	goAdd       bool
-	returnQuery string
+	goHome          bool
+	goAdd           bool
+	returnQuery     string
+	confirmingDelete bool
+	deleteConfirmed  bool
 }
 
 // NewDetailModel creates a DetailModel for the given recipe.
@@ -72,14 +74,21 @@ func (m DetailModel) GoHome() bool { return m.goHome }
 // GoAdd returns true when the user pressed "a" to add a new recipe.
 func (m DetailModel) GoAdd() bool { return m.goAdd }
 
+// DeleteConfirmed returns true when the user confirmed deletion of the recipe.
+func (m DetailModel) DeleteConfirmed() bool { return m.deleteConfirmed }
+
 // ReturnQuery returns any search text typed before leaving.
 func (m DetailModel) ReturnQuery() string { return m.returnQuery }
 
 func (m DetailModel) Init() tea.Cmd { return nil }
 
 // viewportHeight mirrors the list model's formula so the two views feel identical.
+// When the search bar is visible (header focus) it adds 4 lines of overhead.
 func (m DetailModel) viewportHeight() int {
-	v := m.height - 9
+	v := m.height - 7
+	if m.focus == detailFocusHeader {
+		v -= 4
+	}
 	if v < 1 {
 		v = 1
 	}
@@ -105,6 +114,9 @@ func (m DetailModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 	case tea.KeyMsg:
+		if m.confirmingDelete {
+			return m.handleConfirmKey(msg)
+		}
 		// All keypresses when header has focus are routed to the search handler.
 		if m.focus == detailFocusHeader {
 			return m.handleHeaderKey(msg)
@@ -112,6 +124,18 @@ func (m DetailModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.handleNavKey(msg)
 	}
 
+	return m, nil
+}
+
+// handleConfirmKey processes keys while the delete confirmation overlay is shown.
+func (m DetailModel) handleConfirmKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "y":
+		m.deleteConfirmed = true
+		return m, tea.Quit
+	case "n", "esc", "ctrl+c":
+		m.confirmingDelete = false
+	}
 	return m, nil
 }
 
@@ -171,6 +195,9 @@ func (m DetailModel) handleNavKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.goAdd = true
 		return m, tea.Quit
 
+	case "d":
+		m.confirmingDelete = true
+
 	case "/":
 		m.focus = detailFocusHeader
 
@@ -187,9 +214,6 @@ func (m DetailModel) handleNavKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		case detailFocusContent:
 			if m.scroll > 0 {
 				m.scroll--
-			} else {
-				// At top: shift focus to the search bar.
-				m.focus = detailFocusHeader
 			}
 		case detailFocusFooter:
 			// Return to content, positioned at the bottom.
@@ -212,7 +236,6 @@ func (m DetailModel) handleNavKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.scroll -= m.viewportHeight()
 			if m.scroll < 0 {
 				m.scroll = 0
-				m.focus = detailFocusHeader
 			}
 		}
 
@@ -244,9 +267,24 @@ func (m DetailModel) View() string {
 	sb.WriteString(renderDetailBanner(m.recipe.Name, m.width))
 	sb.WriteString("\n")
 
-	// Search bar — active (with border + cursor) whenever header has focus.
-	sb.WriteString(renderSearchBar(m.query, m.focus == detailFocusHeader, m.width))
-	sb.WriteString("\n\n")
+	// Delete confirmation overlay — replaces content and footer.
+	if m.confirmingDelete {
+		confirmContent := m.viewConfirm()
+		sb.WriteString(confirmContent)
+		used := strings.Count(sb.String(), "\n")
+		if fill := m.height - used - 3; fill > 0 {
+			sb.WriteString(strings.Repeat("\n", fill))
+		}
+		sb.WriteString("\n")
+		sb.WriteString(renderConfirmFooter(m.width))
+		return sb.String()
+	}
+
+	// Search bar — only visible when the user pressed "/" to initiate a search.
+	if m.focus == detailFocusHeader {
+		sb.WriteString(renderSearchBar(m.query, true, m.width))
+		sb.WriteString("\n\n")
+	}
 
 	// Scrollable content viewport.
 	vh := m.viewportHeight()
@@ -268,6 +306,30 @@ func (m DetailModel) View() string {
 	sb.WriteString("\n")
 	sb.WriteString(renderDetailFooter(m.focus, m.width))
 
+	return sb.String()
+}
+
+func (m DetailModel) viewConfirm() string {
+	var sb strings.Builder
+	sb.WriteString("\n\n")
+
+	name := truncate(m.recipe.Name, m.width-20)
+	inner := lipgloss.JoinVertical(lipgloss.Left,
+		lipgloss.NewStyle().Bold(true).Foreground(ColorError).Render("Delete recipe?"),
+		"",
+		lipgloss.NewStyle().Bold(true).Foreground(ColorPrimary).Render(name),
+		"",
+		MutedStyle.Render("This cannot be undone."),
+	)
+
+	box := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(ColorError).
+		Padding(1, 3).
+		Render(inner)
+
+	sb.WriteString(lipgloss.PlaceHorizontal(m.width, lipgloss.Center, box))
+	sb.WriteString("\n")
 	return sb.String()
 }
 
@@ -462,6 +524,7 @@ func renderDetailFooter(focus detailFocus, width int) string {
 		"/ search",
 		homeStyle.Render("h home"),
 		MutedStyle.Render("a add"),
+		MutedStyle.Render("d delete"),
 		"q quit",
 	}
 	line := "  " + strings.Join(keys, "   ")
@@ -482,17 +545,14 @@ func min(a, b int) int {
 }
 
 // RunDetailUI runs the interactive recipe detail TUI.
-// Returns (goHome, goAdd bool, searchQuery string, err error).
-// goHome=true means the user wants to navigate to the recipe list.
-// goAdd=true means the user wants to add a new recipe.
-// searchQuery is non-empty if they typed in the search bar before leaving.
-func RunDetailUI(recipe *models.Recipe) (bool, bool, string, error) {
+// Returns goHome, goAdd, deleteConfirmed booleans, the search query, and any error.
+func RunDetailUI(recipe *models.Recipe) (goHome bool, goAdd bool, deleteConfirmed bool, searchQuery string, err error) {
 	m := NewDetailModel(recipe)
 	p := tea.NewProgram(m, tea.WithAltScreen())
-	final, err := p.Run()
-	if err != nil {
-		return false, false, "", err
+	final, runErr := p.Run()
+	if runErr != nil {
+		return false, false, false, "", runErr
 	}
 	fm := final.(DetailModel)
-	return fm.GoHome(), fm.GoAdd(), fm.ReturnQuery(), nil
+	return fm.GoHome(), fm.GoAdd(), fm.DeleteConfirmed(), fm.ReturnQuery(), nil
 }
