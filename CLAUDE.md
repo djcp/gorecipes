@@ -56,6 +56,37 @@ To add a format:
 
 The printer entry uses `ext == ""` as its sentinel; all non-empty `ext` values write a file via `export.UniqueFilePath`.
 
+### Encoding rules per format
+
+| Format | Encoding | How Unicode is handled |
+|--------|----------|------------------------|
+| `.txt` | UTF-8 | Go strings are UTF-8; `os.WriteFile` emits bytes as-is — correct |
+| `.md`  | UTF-8 | Same as plain text — no special handling needed |
+| `.rtf` | cp1252 + RTF escapes | `rtfEnc()` in `rtf.go` translates every rune (see below) |
+| `.pdf` | cp1252 via fpdf `tr` | `UnicodeTranslatorFromDescriptor("")` in `pdf.go` (see below) |
+
+The root cause of mojibake in both RTF and PDF is the same: the output format uses
+**cp1252** as its default character encoding, but Go strings are **UTF-8**. A
+character like `•` (U+2022) is three UTF-8 bytes (`E2 80 A2`); without translation,
+those three bytes are each interpreted as separate cp1252 characters, producing
+`â€¢`. Characters in the Latin-1 supplement (e.g. `°`, U+00B0) are two UTF-8 bytes
+(`C2 B0`), producing `Â°`.
+
+### RTF encoding — always use `rtfEnc`
+
+`rtfEnc` in `internal/export/rtf.go` encodes each Unicode rune into the RTF escape
+sequence the format requires:
+
+- ASCII (0x20–0x7E): pass through (after escaping `\`, `{`, `}`)
+- `\n`: converted to `\par` (RTF paragraph break)
+- Latin-1 supplement (U+00A0–U+00FF): `\'XX` where XX = the byte value (identical in cp1252)
+- cp1252 special range (•, –, —, curly quotes, €, …): `\'XX` via the `cp1252Special` lookup table
+- Everything else: `\uN?` RTF Unicode escape (signed 16-bit decimal, `?` fallback)
+
+Pass **every** user-data string through `rtfEnc` before embedding in the RTF stream.
+The `\ansicpg1252` header tag also needs to be present — it tells RTF readers which
+code page governs `\'XX` escapes.
+
 ### PDF encoding — always translate strings through `tr`
 
 `github.com/go-pdf/fpdf` uses **cp1252** (Windows-1252) for its built-in core fonts
