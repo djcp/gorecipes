@@ -6,85 +6,89 @@ import (
 	"strings"
 
 	"github.com/djcp/gorecipes/internal/models"
-	"github.com/djcp/gorecipes/internal/version"
 )
 
 // ToText renders a recipe as plain text.
 func ToText(r *models.Recipe, opts Options) string {
-	var sb strings.Builder
+	ren := &textRenderer{}
+	b, _ := RenderRecipe(r, opts, ren)
+	return string(b)
+}
 
-	// Title + underline
-	sb.WriteString(r.Name + "\n")
-	sb.WriteString(strings.Repeat("=", len([]rune(r.Name))) + "\n")
+type textRenderer struct {
+	sb strings.Builder
+}
 
-	// Timing / servings
-	var meta []string
-	if t := r.TimingSummary(); t != "" {
-		meta = append(meta, t)
+func (r *textRenderer) Title(name string) {
+	r.sb.WriteString(name + "\n")
+	r.sb.WriteString(strings.Repeat("=", len([]rune(name))) + "\n")
+}
+
+func (r *textRenderer) Meta(timingSummary string, _, _ *int, servings *int, servingUnits string) {
+	var parts []string
+	if timingSummary != "" {
+		parts = append(parts, timingSummary)
 	}
-	if r.Servings != nil && *r.Servings > 0 {
-		units := r.ServingUnits
+	if servings != nil && *servings > 0 {
+		units := servingUnits
 		if units == "" {
 			units = "servings"
 		}
-		meta = append(meta, formatServings(*r.Servings, units))
+		parts = append(parts, formatServings(*servings, units))
 	}
-	if len(meta) > 0 {
-		sb.WriteString(strings.Join(meta, "  ·  ") + "\n")
+	if len(parts) > 0 {
+		r.sb.WriteString(strings.Join(parts, "  ·  ") + "\n")
 	}
+}
 
-	// Tags
-	for _, ctx := range models.AllTagContexts {
-		tags := r.TagsByContext(ctx)
-		if len(tags) > 0 {
-			sb.WriteString(TagContextLabel(ctx) + ": " + strings.Join(tags, ", ") + "\n")
-		}
-	}
+func (r *textRenderer) Description(text string) {
+	r.sb.WriteString("\n" + text + "\n")
+}
 
-	// Description
-	if r.Description != "" {
-		sb.WriteString("\n" + r.Description + "\n")
-	}
+func (r *textRenderer) TagLine(ctxLabel, joined string) {
+	r.sb.WriteString(ctxLabel + ": " + joined + "\n")
+}
 
-	// Ingredients
-	if len(r.Ingredients) > 0 {
-		sb.WriteString("\nINGREDIENTS\n")
-		sb.WriteString("-----------\n")
-		currentSection := ""
-		for _, ing := range r.Ingredients {
-			if ing.Section != currentSection && ing.Section != "" {
-				sb.WriteString("\n  " + ing.Section + "\n")
-				currentSection = ing.Section
-			}
-			sb.WriteString("  " + ing.DisplayString() + "\n")
-		}
-	}
+func (r *textRenderer) IngredientsHeader() {
+	r.sb.WriteString("\nINGREDIENTS\n")
+	r.sb.WriteString("-----------\n")
+}
 
-	// Directions
-	if r.Directions != "" {
-		sb.WriteString("\nDIRECTIONS\n")
-		sb.WriteString("----------\n")
-		sb.WriteString(r.Directions + "\n")
-	}
+func (r *textRenderer) IngredientSection(section string) {
+	r.sb.WriteString("\n  " + section + "\n")
+}
 
-	// Source
-	if r.SourceURL != "" {
-		sb.WriteString("\nSource: " + r.SourceURL + "\n")
-	}
+func (r *textRenderer) Ingredient(display string) {
+	r.sb.WriteString("  " + display + "\n")
+}
 
-	// Footer: credits left-aligned, version right-aligned, at ~80 columns.
-	versionStr := "exported from gorecipes " + version.Version
-	if opts.Credits != "" {
-		gap := 80 - len([]rune(opts.Credits)) - len([]rune(versionStr))
+func (r *textRenderer) DirectionsHeader() {
+	r.sb.WriteString("\nDIRECTIONS\n")
+	r.sb.WriteString("----------\n")
+}
+
+func (r *textRenderer) Directions(text string) {
+	r.sb.WriteString(text + "\n")
+}
+
+func (r *textRenderer) SourceURL(url string) {
+	r.sb.WriteString("\nSource: " + url + "\n")
+}
+
+func (r *textRenderer) Footer(credits, versionStr string) {
+	if credits != "" {
+		gap := 80 - len([]rune(credits)) - len([]rune(versionStr))
 		if gap < 2 {
 			gap = 2
 		}
-		sb.WriteString("\n" + opts.Credits + strings.Repeat(" ", gap) + versionStr + "\n")
+		r.sb.WriteString("\n" + credits + strings.Repeat(" ", gap) + versionStr + "\n")
 	} else {
-		sb.WriteString(fmt.Sprintf("\n%80s\n", versionStr))
+		r.sb.WriteString(fmt.Sprintf("\n%80s\n", versionStr))
 	}
+}
 
-	return sb.String()
+func (r *textRenderer) Result() ([]byte, error) {
+	return []byte(r.sb.String()), nil
 }
 
 func formatServings(n int, units string) string {

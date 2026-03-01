@@ -5,83 +5,86 @@ import (
 	"strings"
 
 	"github.com/djcp/gorecipes/internal/models"
-	"github.com/djcp/gorecipes/internal/version"
 )
 
 // ToMarkdown renders a recipe as a Markdown document.
 func ToMarkdown(r *models.Recipe, opts Options) string {
-	var sb strings.Builder
+	ren := &markdownRenderer{}
+	b, _ := RenderRecipe(r, opts, ren)
+	return string(b)
+}
 
-	sb.WriteString("# " + r.Name + "\n\n")
+type markdownRenderer struct {
+	sb strings.Builder
+}
 
-	// Timing / servings line
-	var meta []string
-	if r.PreparationTime != nil && *r.PreparationTime > 0 {
-		meta = append(meta, fmt.Sprintf("**Prep:** %s", FormatMins(*r.PreparationTime)))
+func (r *markdownRenderer) Title(name string) {
+	r.sb.WriteString("# " + name + "\n\n")
+}
+
+func (r *markdownRenderer) Meta(_ string, prepMins, cookMins, servings *int, servingUnits string) {
+	var parts []string
+	if prepMins != nil && *prepMins > 0 {
+		parts = append(parts, fmt.Sprintf("**Prep:** %s", FormatMins(*prepMins)))
 	}
-	if r.CookingTime != nil && *r.CookingTime > 0 {
-		meta = append(meta, fmt.Sprintf("**Cook:** %s", FormatMins(*r.CookingTime)))
+	if cookMins != nil && *cookMins > 0 {
+		parts = append(parts, fmt.Sprintf("**Cook:** %s", FormatMins(*cookMins)))
 	}
-	if r.Servings != nil && *r.Servings > 0 {
-		units := r.ServingUnits
+	if servings != nil && *servings > 0 {
+		units := servingUnits
 		if units == "" {
 			units = "servings"
 		}
-		meta = append(meta, fmt.Sprintf("**Serves:** %d %s", *r.Servings, units))
+		parts = append(parts, fmt.Sprintf("**Serves:** %d %s", *servings, units))
 	}
-	if len(meta) > 0 {
-		sb.WriteString(strings.Join(meta, " | ") + "\n\n")
+	if len(parts) > 0 {
+		r.sb.WriteString(strings.Join(parts, " | ") + "\n\n")
 	}
+}
 
-	// Description
-	if r.Description != "" {
-		sb.WriteString("> " + r.Description + "\n\n")
-	}
+func (r *markdownRenderer) Description(text string) {
+	r.sb.WriteString("> " + text + "\n\n")
+}
 
-	// Tags as blockquote lines
-	for _, ctx := range models.AllTagContexts {
-		tags := r.TagsByContext(ctx)
-		if len(tags) > 0 {
-			sb.WriteString("> **" + TagContextLabel(ctx) + ":** " + strings.Join(tags, ", ") + "\n")
-		}
-	}
-	sb.WriteString("\n")
+func (r *markdownRenderer) TagLine(ctxLabel, joined string) {
+	r.sb.WriteString("> **" + ctxLabel + ":** " + joined + "\n")
+}
 
-	// Ingredients
-	if len(r.Ingredients) > 0 {
-		sb.WriteString("## Ingredients\n\n")
-		currentSection := ""
-		for _, ing := range r.Ingredients {
-			if ing.Section != currentSection && ing.Section != "" {
-				sb.WriteString("\n### " + ing.Section + "\n\n")
-				currentSection = ing.Section
-			}
-			sb.WriteString("- " + ing.DisplayString() + "\n")
-		}
-		sb.WriteString("\n")
-	}
+func (r *markdownRenderer) IngredientsHeader() {
+	r.sb.WriteString("\n## Ingredients\n\n")
+}
 
-	// Directions
-	if r.Directions != "" {
-		sb.WriteString("## Directions\n\n")
-		sb.WriteString(r.Directions + "\n")
-	}
+func (r *markdownRenderer) IngredientSection(section string) {
+	r.sb.WriteString("\n### " + section + "\n\n")
+}
 
-	// Source
-	if r.SourceURL != "" {
-		sb.WriteString("\n---\n\nSource: " + r.SourceURL + "\n")
-	}
+func (r *markdownRenderer) Ingredient(display string) {
+	r.sb.WriteString("- " + display + "\n")
+}
 
-	// Footer: credits left, version right.
-	versionStr := "exported from gorecipes " + version.Version
-	if opts.Credits != "" {
-		sb.WriteString("\n<table width=\"100%\"><tr>")
-		sb.WriteString("<td><sub>" + opts.Credits + "</sub></td>")
-		sb.WriteString("<td align=\"right\"><sub>" + versionStr + "</sub></td>")
-		sb.WriteString("</tr></table>\n")
+func (r *markdownRenderer) DirectionsHeader() {
+	r.sb.WriteString("\n## Directions\n\n")
+}
+
+func (r *markdownRenderer) Directions(text string) {
+	r.sb.WriteString(text + "\n")
+}
+
+func (r *markdownRenderer) SourceURL(url string) {
+	r.sb.WriteString("\n---\n\nSource: " + url + "\n")
+}
+
+func (r *markdownRenderer) Footer(credits, versionStr string) {
+	if credits != "" {
+		r.sb.WriteString("\n<table width=\"100%\"><tr>")
+		r.sb.WriteString("<td><sub>" + credits + "</sub></td>")
+		r.sb.WriteString("<td align=\"right\"><sub>" + versionStr + "</sub></td>")
+		r.sb.WriteString("</tr></table>\n")
 	} else {
-		sb.WriteString("\n<p align=\"right\"><sub>" + versionStr + "</sub></p>\n")
+		r.sb.WriteString("\n<p align=\"right\"><sub>" + versionStr + "</sub></p>\n")
 	}
+}
 
-	return sb.String()
+func (r *markdownRenderer) Result() ([]byte, error) {
+	return []byte(r.sb.String()), nil
 }

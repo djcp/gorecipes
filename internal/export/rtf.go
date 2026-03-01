@@ -5,103 +5,105 @@ import (
 	"strings"
 
 	"github.com/djcp/gorecipes/internal/models"
-	"github.com/djcp/gorecipes/internal/version"
 )
 
 // ToRTF renders a recipe as an RTF 1.x document (cp1252 encoding).
 func ToRTF(r *models.Recipe, opts Options) string {
-	var sb strings.Builder
+	ren := &rtfRenderer{}
+	b, _ := RenderRecipe(r, opts, ren)
+	return string(b)
+}
 
+type rtfRenderer struct {
+	sb strings.Builder
+}
+
+func (r *rtfRenderer) Title(name string) {
 	// \ansicpg1252 declares the default code page explicitly so RTF readers
 	// use cp1252 rather than the system default when interpreting \'XX escapes.
-	sb.WriteString("{\\rtf1\\ansi\\ansicpg1252\\deff0\n")
-	sb.WriteString("{\\fonttbl{\\f0\\fswiss Helvetica;}}\n")
+	r.sb.WriteString("{\\rtf1\\ansi\\ansicpg1252\\deff0\n")
+	r.sb.WriteString("{\\fonttbl{\\f0\\fswiss Helvetica;}}\n")
 	// cf1=terracotta  cf2=sage green  cf3=warm gray  cf4=50% gray (attribution)
-	sb.WriteString("{\\colortbl;\\red201\\green100\\blue66;\\red124\\green158\\blue110;\\red142\\green129\\blue120;\\red128\\green128\\blue128;}\n")
-	sb.WriteString("\\f0\\fs22\n")
+	r.sb.WriteString("{\\colortbl;\\red201\\green100\\blue66;\\red124\\green158\\blue110;\\red142\\green129\\blue120;\\red128\\green128\\blue128;}\n")
+	r.sb.WriteString("\\f0\\fs22\n")
+	r.sb.WriteString(fmt.Sprintf("{\\fs36\\b\\cf1 %s\\cf0\\b0\\par}\n", rtfEnc(name)))
+	r.sb.WriteString("\\par\n")
+}
 
-	// Title
-	sb.WriteString(fmt.Sprintf("{\\fs36\\b\\cf1 %s\\cf0\\b0\\par}\n", rtfEnc(r.Name)))
-	sb.WriteString("\\par\n")
-
-	// Timing / servings
-	var meta []string
-	if t := r.TimingSummary(); t != "" {
-		meta = append(meta, t)
+func (r *rtfRenderer) Meta(timingSummary string, _, _ *int, servings *int, servingUnits string) {
+	var parts []string
+	if timingSummary != "" {
+		parts = append(parts, timingSummary)
 	}
-	if r.Servings != nil && *r.Servings > 0 {
-		units := r.ServingUnits
+	if servings != nil && *servings > 0 {
+		units := servingUnits
 		if units == "" {
 			units = "servings"
 		}
-		meta = append(meta, formatServings(*r.Servings, units))
+		parts = append(parts, formatServings(*servings, units))
 	}
-	if len(meta) > 0 {
-		sb.WriteString(fmt.Sprintf("{\\fs20\\cf3 %s\\cf0\\par}\n", rtfEnc(strings.Join(meta, "  \u00b7  "))))
+	if len(parts) > 0 {
+		r.sb.WriteString(fmt.Sprintf("{\\fs20\\cf3 %s\\cf0\\par}\n", rtfEnc(strings.Join(parts, "  \u00b7  "))))
 	}
+}
 
-	// Tags
-	for _, ctx := range models.AllTagContexts {
-		tags := r.TagsByContext(ctx)
-		if len(tags) > 0 {
-			label := TagContextLabel(ctx)
-			sb.WriteString(fmt.Sprintf("{\\fs18\\cf3 %s: %s\\cf0\\par}\n",
-				rtfEnc(label), rtfEnc(strings.Join(tags, ", "))))
-		}
-	}
-	sb.WriteString("\\par\n")
+func (r *rtfRenderer) Description(text string) {
+	r.sb.WriteString(fmt.Sprintf("{\\fs22\\i %s\\i0\\par}\n", rtfEnc(text)))
+	r.sb.WriteString("\\par\n")
+}
 
-	// Description
-	if r.Description != "" {
-		sb.WriteString(fmt.Sprintf("{\\fs22\\i %s\\i0\\par}\n", rtfEnc(r.Description)))
-		sb.WriteString("\\par\n")
-	}
+func (r *rtfRenderer) TagLine(ctxLabel, joined string) {
+	r.sb.WriteString(fmt.Sprintf("{\\fs18\\cf3 %s: %s\\cf0\\par}\n", rtfEnc(ctxLabel), rtfEnc(joined)))
+}
 
-	// Ingredients
-	if len(r.Ingredients) > 0 {
-		sb.WriteString("{\\fs26\\b\\cf2 Ingredients\\cf0\\b0\\par}\n")
-		sb.WriteString("\\par\n")
-		currentSection := ""
-		for _, ing := range r.Ingredients {
-			if ing.Section != currentSection && ing.Section != "" {
-				sb.WriteString(fmt.Sprintf("{\\fs22\\b %s\\b0\\par}\n", rtfEnc(ing.Section)))
-				currentSection = ing.Section
-			}
-			sb.WriteString(fmt.Sprintf("{\\fs22 - %s\\par}\n", rtfEnc(ing.DisplayString())))
-		}
-		sb.WriteString("\\par\n")
-	}
+func (r *rtfRenderer) IngredientsHeader() {
+	r.sb.WriteString("\\par\n")
+	r.sb.WriteString("{\\fs26\\b\\cf2 Ingredients\\cf0\\b0\\par}\n")
+	r.sb.WriteString("\\par\n")
+}
 
-	// Directions
-	if r.Directions != "" {
-		sb.WriteString("{\\fs26\\b\\cf2 Directions\\cf0\\b0\\par}\n")
-		sb.WriteString("\\par\n")
-		sb.WriteString(fmt.Sprintf("{\\fs22 %s\\par}\n", rtfEnc(r.Directions)))
-		sb.WriteString("\\par\n")
-	}
+func (r *rtfRenderer) IngredientSection(section string) {
+	r.sb.WriteString(fmt.Sprintf("{\\fs22\\b %s\\b0\\par}\n", rtfEnc(section)))
+}
 
-	// Source URL
-	if r.SourceURL != "" {
-		sb.WriteString(fmt.Sprintf("{\\fs18\\cf3 Source: %s\\cf0\\par}\n", rtfEnc(r.SourceURL)))
-	}
+func (r *rtfRenderer) Ingredient(display string) {
+	r.sb.WriteString(fmt.Sprintf("{\\fs22 - %s\\par}\n", rtfEnc(display)))
+}
 
-	// Footer: credits left, version right — on the same line.
+func (r *rtfRenderer) DirectionsHeader() {
+	r.sb.WriteString("\\par\n")
+	r.sb.WriteString("{\\fs26\\b\\cf2 Directions\\cf0\\b0\\par}\n")
+	r.sb.WriteString("\\par\n")
+}
+
+func (r *rtfRenderer) Directions(text string) {
+	r.sb.WriteString(fmt.Sprintf("{\\fs22 %s\\par}\n", rtfEnc(text)))
+	r.sb.WriteString("\\par\n")
+}
+
+func (r *rtfRenderer) SourceURL(url string) {
+	r.sb.WriteString(fmt.Sprintf("{\\fs18\\cf3 Source: %s\\cf0\\par}\n", rtfEnc(url)))
+}
+
+func (r *rtfRenderer) Footer(credits, versionStr string) {
 	// \tqr\tx9360 places a right-aligned tab stop at 9360 twips (6.5", the text
 	// width of a Letter page with standard 1-inch margins). \tab jumps to it so
 	// the version lands flush-right while credits sit flush-left.
-	if opts.Credits != "" {
-		sb.WriteString(fmt.Sprintf(
-			"{\\pard\\tqr\\tx9360\\fs16\\cf3 %s\\cf4\\tab exported from gorecipes %s\\cf0\\par}\n",
-			rtfEnc(opts.Credits),
-			rtfEnc(version.Version),
+	if credits != "" {
+		r.sb.WriteString(fmt.Sprintf(
+			"{\\pard\\tqr\\tx9360\\fs16\\cf3 %s\\cf4\\tab %s\\cf0\\par}\n",
+			rtfEnc(credits),
+			rtfEnc(versionStr),
 		))
 	} else {
-		sb.WriteString(fmt.Sprintf("{\\pard\\qr\\fs16\\cf4 exported from gorecipes %s\\cf0\\par}\n",
-			rtfEnc(version.Version)))
+		r.sb.WriteString(fmt.Sprintf("{\\pard\\qr\\fs16\\cf4 %s\\cf0\\par}\n",
+			rtfEnc(versionStr)))
 	}
+	r.sb.WriteString("}\n")
+}
 
-	sb.WriteString("}\n")
-	return sb.String()
+func (r *rtfRenderer) Result() ([]byte, error) {
+	return []byte(r.sb.String()), nil
 }
 
 // cp1252Special maps Unicode code points in the U+0080–U+009F range that
