@@ -63,23 +63,23 @@ type ingredientRow struct {
 func newIngredientRow() ingredientRow {
 	qty := textinput.New()
 	qty.Placeholder = "qty"
-	qty.Width = 6
+	qty.Width = 8
 
 	unit := textinput.New()
 	unit.Placeholder = "unit"
-	unit.Width = 10
+	unit.Width = 13
 
 	name := textinput.New()
 	name.Placeholder = "ingredient"
-	name.Width = 18
+	name.Width = 23
 
 	desc := textinput.New()
 	desc.Placeholder = "descriptor"
-	desc.Width = 12
+	desc.Width = 15
 
 	sect := textinput.New()
 	sect.Placeholder = "section"
-	sect.Width = 10
+	sect.Width = 13
 
 	return ingredientRow{qty: qty, unit: unit, name: name, descriptor: desc, section: sect}
 }
@@ -87,10 +87,15 @@ func newIngredientRow() ingredientRow {
 func populateIngredientRow(ri models.RecipeIngredient) ingredientRow {
 	row := newIngredientRow()
 	row.qty.SetValue(ri.Quantity)
+	row.qty.CursorStart()
 	row.unit.SetValue(ri.Unit)
+	row.unit.CursorStart()
 	row.name.SetValue(ri.IngredientName)
+	row.name.CursorStart()
 	row.descriptor.SetValue(ri.Descriptor)
+	row.descriptor.CursorStart()
 	row.section.SetValue(ri.Section)
+	row.section.CursorStart()
 	return row
 }
 
@@ -125,7 +130,6 @@ type EditModel struct {
 	focused editFocus
 	width   int
 	height  int
-	scroll  int
 
 	saved  bool
 	goHome bool
@@ -632,7 +636,6 @@ func (m *EditModel) advanceFocus() {
 	m.blurCurrent()
 	m.focused = (m.focused + 1) % efCount
 	m.focusCurrent()
-	m.ensureFocusVisible()
 }
 
 func (m *EditModel) retreatFocus() {
@@ -643,100 +646,6 @@ func (m *EditModel) retreatFocus() {
 		m.focused--
 	}
 	m.focusCurrent()
-	m.ensureFocusVisible()
-}
-
-// estimateFocusLine returns the approximate formLines index of the focused
-// field, computed from the known per-section heights in buildForm.
-//
-// Each section's height (in newlines) depends on whether it is currently
-// focused (bordered box, taller) or not (compact single-line / base height).
-// The helper h(f, compact, expanded) returns compact when f != m.focused.
-func (m EditModel) estimateFocusLine() int {
-	h := func(f editFocus, compact, expanded int) int {
-		if m.focused == f {
-			return expanded
-		}
-		return compact
-	}
-
-	line := 1 // after opening \n in buildForm
-
-	if m.focused == efName {
-		return line
-	}
-	line += h(efName, 1, 3) // single-line field (+\n) or 3-line border box (+\n)
-
-	if m.focused == efStatus {
-		return line
-	}
-	line += h(efStatus, 2, 4) // single-line (+\n\n) or 3-line box (+\n\n)
-
-	// "Description:" label occupies one line before the textarea.
-	if m.focused == efDescription {
-		return line + 1 // skip the label line to show the input
-	}
-	line += 1 + h(efDescription, 4, 6) // label\n + 3-line textarea+\n\n (or 5-line when focused)
-
-	if m.focused == efPrepTime || m.focused == efCookTime {
-		return line
-	}
-	line++ // "Prep: X  Cook: Y" inline row
-
-	if m.focused == efServings || m.focused == efServingUnits {
-		return line
-	}
-	line++ // "Servings: N units" inline row
-
-	if m.sourceURL != "" {
-		line += 2 // "Source URL: …\n\n"
-	}
-
-	if m.focused == efTagCourses {
-		return line
-	}
-	line += h(efTagCourses, 1, 3)
-
-	if m.focused == efTagCooking {
-		return line
-	}
-	line += h(efTagCooking, 1, 3)
-
-	if m.focused == efTagCultural {
-		return line
-	}
-	line += h(efTagCultural, 1, 3)
-
-	if m.focused == efTagDietary {
-		return line
-	}
-	line += h(efTagDietary, 1, 3) + 1 // +1 for blank line after tag block
-
-	if m.focused == efIngredients {
-		return line
-	}
-	// Ingredients header (1) + col-header (1) + N rows + hint (1) + \n\n (2)
-	line += 2 + len(m.ingRows) + 3
-
-	if m.focused == efDirections {
-		return line + 1 // skip "Directions:" label to show the textarea
-	}
-
-	return line
-}
-
-// ensureFocusVisible adjusts m.scroll so the focused field is within the viewport.
-func (m *EditModel) ensureFocusVisible() {
-	target := m.estimateFocusLine()
-	vh := m.viewportHeight()
-	if target < m.scroll {
-		m.scroll = target
-	} else if target >= m.scroll+vh {
-		m.scroll = target - vh + 2
-	}
-	if m.scroll < 0 {
-		m.scroll = 0
-	}
 }
 
 func (m *EditModel) blurCurrent() {
@@ -834,32 +743,34 @@ func (m EditModel) View() string {
 	}
 	sb.WriteString("\n")
 
-	// Build the full form as lines, then apply scroll.
-	formLines := strings.Split(m.buildForm(), "\n")
+	// Build the full form as lines, tracking exactly where the focused field is.
+	form, focusLine := m.buildForm()
+	formLines := strings.Split(form, "\n")
 	vh := m.viewportHeight()
 
-	// Clamp scroll.
+	// Compute scroll so the focused field lands roughly one-third from the top.
+	scroll := focusLine - vh/3
+	if scroll < 0 {
+		scroll = 0
+	}
 	maxScroll := len(formLines) - vh
 	if maxScroll < 0 {
 		maxScroll = 0
 	}
-	if m.scroll > maxScroll {
-		m.scroll = maxScroll
-	}
-	if m.scroll < 0 {
-		m.scroll = 0
+	if scroll > maxScroll {
+		scroll = maxScroll
 	}
 
-	end := m.scroll + vh
+	end := scroll + vh
 	if end > len(formLines) {
 		end = len(formLines)
 	}
-	for i := m.scroll; i < end; i++ {
+	for i := scroll; i < end; i++ {
 		sb.WriteString(formLines[i])
 		sb.WriteString("\n")
 	}
 	// Pad remaining viewport.
-	for i := end - m.scroll; i < vh; i++ {
+	for i := end - scroll; i < vh; i++ {
 		sb.WriteString("\n")
 	}
 
@@ -875,17 +786,33 @@ func (m EditModel) View() string {
 	return sb.String()
 }
 
-// buildForm renders the complete form as a single string.
-func (m EditModel) buildForm() string {
+// buildForm renders the complete form as a single string and returns the line
+// index where the focused field begins. Line tracking is exact: every \n
+// written through the write() helper increments the counter, so focusLine
+// always points to the actual rendered position of the active field.
+func (m EditModel) buildForm() (string, int) {
 	var sb strings.Builder
 	w := m.formWidth()
-
 	focused := func(f editFocus) bool { return m.focused == f }
 
+	lineCount := 0
+	focusLine := 0
+
+	// write appends s to the builder and counts its newlines.
+	write := func(s string) {
+		sb.WriteString(s)
+		lineCount += strings.Count(s, "\n")
+	}
+
+	// markFocus records the current line as the start of field f's content,
+	// but only when f is the field that is currently focused.
+	markFocus := func(f editFocus) {
+		if m.focused == f {
+			focusLine = lineCount
+		}
+	}
+
 	// renderField renders a labelled text input.
-	// When focused: label + input are rendered inside a bordered box with
-	// MarginLeft(2) so every line of the box is indented consistently.
-	// When unfocused: single-line "  label  input" (no multi-line risk).
 	renderField := func(label string, inp textinput.Model, focus bool) string {
 		lbl := MutedStyle.Width(14).Render(label)
 		if focus {
@@ -900,9 +827,7 @@ func (m EditModel) buildForm() string {
 		return "  " + lbl + inp.View()
 	}
 
-	// renderInlineField highlights a short numeric/text field without adding a
-	// border.  A border would make it multi-line and break the surrounding
-	// single-line "Prep: X min  Cook: Y min" layout.
+	// renderInlineField highlights a short field without a border.
 	renderInlineField := func(inp textinput.Model, focus bool) string {
 		if focus {
 			return lipgloss.NewStyle().Bold(true).Foreground(ColorPrimary).Render(inp.View())
@@ -910,11 +835,12 @@ func (m EditModel) buildForm() string {
 		return inp.View()
 	}
 
-	sb.WriteString("\n")
+	write("\n")
 
 	// Name.
-	sb.WriteString(renderField("Name:", m.nameInput, focused(efName)))
-	sb.WriteString("\n")
+	markFocus(efName)
+	write(renderField("Name:", m.nameInput, focused(efName)))
+	write("\n")
 
 	// Status.
 	left := MutedStyle.Render("◄")
@@ -922,58 +848,61 @@ func (m EditModel) buildForm() string {
 	statusVal := lipgloss.NewStyle().Bold(true).Foreground(ColorPrimary).Render(editStatusOptions[m.statusIdx])
 	statusLbl := MutedStyle.Width(14).Render("Status:")
 	statusContent := statusLbl + left + " " + statusVal + " " + right
+	markFocus(efStatus)
 	if focused(efStatus) {
-		sb.WriteString(lipgloss.NewStyle().
+		write(lipgloss.NewStyle().
 			Border(lipgloss.NormalBorder()).
 			BorderForeground(ColorPrimary).
 			Padding(0, 1).
 			MarginLeft(2).
 			Render(statusContent))
 	} else {
-		sb.WriteString("  " + statusContent)
+		write("  " + statusContent)
 	}
-	sb.WriteString("\n\n")
+	write("\n\n")
 
-	// Description — already uses MarginLeft(2) so all lines are indented.
-	sb.WriteString(MutedStyle.Render("  Description:"))
-	sb.WriteString("\n")
+	// Description — label on its own line, then the textarea.
+	write(MutedStyle.Render("  Description:") + "\n")
+	markFocus(efDescription) // mark after label so focus shows the input
 	descBlock := lipgloss.NewStyle().
 		MarginLeft(2).
 		Width(w - 4)
 	if focused(efDescription) {
 		descBlock = descBlock.Border(lipgloss.NormalBorder()).BorderForeground(ColorPrimary)
 	}
-	sb.WriteString(descBlock.Render(m.descInput.View()))
-	sb.WriteString("\n\n")
+	write(descBlock.Render(m.descInput.View()))
+	write("\n\n")
 
 	// Prep / Cook — inline fields; use bold+color for focus to stay single-line.
 	prepLbl := MutedStyle.Render("Prep: ")
 	cookLbl := MutedStyle.Render("  Cook: ")
 	minLbl := MutedStyle.Render(" min")
-	sb.WriteString("  " + prepLbl +
+	markFocus(efPrepTime)
+	markFocus(efCookTime) // same rendered line
+	write("  " + prepLbl +
 		renderInlineField(m.prepInput, focused(efPrepTime)) + minLbl +
 		cookLbl +
 		renderInlineField(m.cookInput, focused(efCookTime)) + minLbl)
-	sb.WriteString("\n")
+	write("\n")
 
 	// Servings — same inline approach.
 	servLbl := MutedStyle.Render("Servings: ")
-	sb.WriteString("  " + servLbl +
+	markFocus(efServings)
+	markFocus(efServingUnits) // same rendered line
+	write("  " + servLbl +
 		renderInlineField(m.servingsInput, focused(efServings)) +
 		"  " +
 		renderInlineField(m.servingUnitsInput, focused(efServingUnits)))
-	sb.WriteString("\n")
+	write("\n")
 
 	// Source URL — read-only; displayed only when present.
 	if m.sourceURL != "" {
 		lbl := MutedStyle.Width(14).Render("Source URL:")
 		url := lipgloss.NewStyle().Foreground(ColorPrimary).Render(truncate(m.sourceURL, w-20))
-		sb.WriteString("  " + lbl + url)
-		sb.WriteString("\n\n")
+		write("  " + lbl + url + "\n\n")
 	}
 
-	// Tag sections — when focused, embed label + pills inside the bordered box
-	// and use MarginLeft(2) so all border lines are indented consistently.
+	// Tag sections.
 	tagFocuses := []struct {
 		f   editFocus
 		ctx string
@@ -988,53 +917,55 @@ func (m EditModel) buildForm() string {
 		lbl := MutedStyle.Width(14).Render(tf.lbl)
 		pills := m.renderTagPills(tf.ctx)
 		ti := m.tagInputs[tf.ctx]
+		markFocus(tf.f)
 		if focused(tf.f) {
-			sb.WriteString(lipgloss.NewStyle().
+			write(lipgloss.NewStyle().
 				Border(lipgloss.NormalBorder()).
 				BorderForeground(ColorPrimary).
 				Padding(0, 1).
 				MarginLeft(2).
 				Render(lbl + pills + ti.View()))
 		} else {
-			sb.WriteString("  " + lbl + pills + ti.View())
+			write("  " + lbl + pills + ti.View())
 		}
-		sb.WriteString("\n")
+		write("\n")
 	}
-	sb.WriteString("\n")
+	write("\n")
 
 	// Ingredients section header.
 	sepLine := lipgloss.NewStyle().
 		Foreground(ColorBorder).
 		Render(strings.Repeat("─", w-4))
-	sb.WriteString("  " + MutedStyle.Bold(true).Render("Ingredients") + " " + sepLine)
-	sb.WriteString("\n")
-	sb.WriteString(MutedStyle.Render(fmt.Sprintf(
-		"  %-6s  %-10s  %-18s  %-12s  %-10s",
+	write("  " + MutedStyle.Bold(true).Render("Ingredients") + " " + sepLine + "\n")
+	write(MutedStyle.Render(fmt.Sprintf(
+		"  %-8s  %-13s  %-23s  %-15s  %-13s",
 		"Qty", "Unit", "Name", "Descriptor", "Section",
-	)))
-	sb.WriteString("\n")
+	)) + "\n")
 
 	for i, row := range m.ingRows {
 		isRowFocused := m.focused == efIngredients && i == m.ingRowCursor
-		sb.WriteString(m.renderIngRow(row, isRowFocused, i))
-		sb.WriteString("\n")
+		// For the ingredients section, track the exact cursor row instead of
+		// the section header so scroll brings the active row into view.
+		if m.focused == efIngredients && i == m.ingRowCursor {
+			focusLine = lineCount
+		}
+		write(m.renderIngRow(row, isRowFocused, i) + "\n")
 	}
-	sb.WriteString(MutedStyle.Render("  ctrl+a  add row   ctrl+d  remove row"))
-	sb.WriteString("\n\n")
+	write(MutedStyle.Render("  ctrl+a  add row   ctrl+d  remove row") + "\n\n")
 
-	// Directions — already uses MarginLeft(2).
-	sb.WriteString(MutedStyle.Render("  Directions:"))
-	sb.WriteString("\n")
+	// Directions — label on its own line, then the textarea.
+	write(MutedStyle.Render("  Directions:") + "\n")
+	markFocus(efDirections) // mark after label
 	dirBlock := lipgloss.NewStyle().
 		MarginLeft(2).
 		Width(w - 4)
 	if focused(efDirections) {
 		dirBlock = dirBlock.Border(lipgloss.NormalBorder()).BorderForeground(ColorPrimary)
 	}
-	sb.WriteString(dirBlock.Render(m.directionsInput.View()))
-	sb.WriteString("\n")
+	write(dirBlock.Render(m.directionsInput.View()))
+	write("\n")
 
-	return sb.String()
+	return sb.String(), focusLine
 }
 
 func (m EditModel) renderTagPills(ctx string) string {
@@ -1059,11 +990,11 @@ func (m EditModel) renderIngRow(row ingredientRow, rowFocused bool, rowIdx int) 
 		return lipgloss.NewStyle().Width(width).Render(v)
 	}
 
-	qty := renderCol(row.qty, 0, 6)
-	unit := renderCol(row.unit, 1, 10)
-	name := renderCol(row.name, 2, 18)
-	desc := renderCol(row.descriptor, 3, 12)
-	sect := renderCol(row.section, 4, 10)
+	qty := renderCol(row.qty, 0, 8)
+	unit := renderCol(row.unit, 1, 13)
+	name := renderCol(row.name, 2, 23)
+	desc := renderCol(row.descriptor, 3, 15)
+	sect := renderCol(row.section, 4, 13)
 
 	return "  " + qty + "  " + unit + "  " + name + "  " + desc + "  " + sect
 }
