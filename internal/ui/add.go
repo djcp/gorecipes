@@ -22,7 +22,8 @@ type PipelineLaunchFn func(
 type addPhase int
 
 const (
-	addPhaseInput    addPhase = iota // user entering URL or paste text
+	addPhaseMode     addPhase = iota // mode selection: URL / paste / manual
+	addPhaseInput                    // user entering URL or paste text
 	addPhaseProgress                 // pipeline running
 	addPhaseResult                   // pipeline done (error); waiting for nav key
 )
@@ -45,6 +46,9 @@ type AddModel struct {
 	pasteMode bool
 	launch    PipelineLaunchFn
 	phase     addPhase
+
+	// Mode selection cursor (addPhaseMode).
+	modeIdx int
 
 	// URL input (single-line, hand-rolled to match the search bar style).
 	urlInput string
@@ -69,6 +73,7 @@ type AddModel struct {
 	pipeErr  error
 	goHome   bool
 	goAdd    bool
+	goManual bool
 }
 
 func newAddSteps(pasteMode bool) []progressStep {
@@ -84,7 +89,8 @@ func newAddSteps(pasteMode bool) []progressStep {
 }
 
 // NewAddModel constructs an AddModel.  If initialURL is non-empty the model
-// skips the input phase and immediately launches the pipeline.
+// skips the mode screen and immediately launches the pipeline.
+// pasteMode=true skips the mode screen and goes to paste input.
 func NewAddModel(pasteMode bool, initialURL string, fn PipelineLaunchFn) AddModel {
 	m := AddModel{
 		pasteMode: pasteMode,
@@ -93,28 +99,37 @@ func NewAddModel(pasteMode bool, initialURL string, fn PipelineLaunchFn) AddMode
 		width:     80,
 		height:    24,
 	}
-	if pasteMode {
+	if initialURL != "" {
+		// URL provided on CLI — skip mode selection and go straight to pipeline.
+		m.urlInput = initialURL
+		m = m.startPipeline(initialURL, "")
+	} else if pasteMode {
+		// --paste flag — skip mode selection and go straight to paste input.
 		ta := textarea.New()
 		ta.Placeholder = "Paste the full recipe text here..."
 		ta.ShowLineNumbers = false
 		ta.Focus()
 		m.textarea = ta
-	}
-	if initialURL != "" {
-		m.urlInput = initialURL
-		m = m.startPipeline(initialURL, "")
+		m.phase = addPhaseInput
+	} else {
+		// No URL or paste mode — show mode selection screen.
+		m.phase = addPhaseMode
 	}
 	return m
 }
 
-func (m AddModel) RecipeID() int64 { return m.recipeID }
-func (m AddModel) GoHome() bool    { return m.goHome }
-func (m AddModel) GoAdd() bool     { return m.goAdd }
-func (m AddModel) PipeErr() error  { return m.pipeErr }
+func (m AddModel) RecipeID() int64  { return m.recipeID }
+func (m AddModel) GoHome() bool     { return m.goHome }
+func (m AddModel) GoAdd() bool      { return m.goAdd }
+func (m AddModel) GoManual() bool   { return m.goManual }
+func (m AddModel) PipeErr() error   { return m.pipeErr }
 
 func (m AddModel) Init() tea.Cmd {
 	if m.phase == addPhaseProgress {
 		return tea.Batch(waitForStep(m.stepCh), waitForAddDone(m.doneCh), tickCmd())
+	}
+	if m.phase == addPhaseInput && m.pasteMode {
+		return textarea.Blink
 	}
 	return nil
 }
@@ -193,7 +208,7 @@ func (m AddModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	// Forward non-key messages to the textarea (e.g. cursor blink).
-	if m.pasteMode && m.phase == addPhaseInput {
+	if m.phase == addPhaseInput && m.pasteMode {
 		var cmd tea.Cmd
 		m.textarea, cmd = m.textarea.Update(msg)
 		return m, cmd
@@ -222,6 +237,45 @@ func (m AddModel) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		case "a":
 			m.goAdd = true
 			return m, tea.Quit
+		}
+		return m, nil
+	}
+
+	// Mode selection screen.
+	if m.phase == addPhaseMode {
+		const modeCount = 3
+		switch msg.String() {
+		case "ctrl+c":
+			return m, tea.Quit
+		case "esc":
+			m.goHome = true
+			return m, tea.Quit
+		case "up", "k":
+			if m.modeIdx > 0 {
+				m.modeIdx--
+			}
+		case "down", "j":
+			if m.modeIdx < modeCount-1 {
+				m.modeIdx++
+			}
+		case "enter", " ":
+			switch m.modeIdx {
+			case 0: // From a URL
+				m.phase = addPhaseInput
+				m.pasteMode = false
+			case 1: // Paste recipe text
+				ta := textarea.New()
+				ta.Placeholder = "Paste the full recipe text here..."
+				ta.ShowLineNumbers = false
+				ta.Focus()
+				m.textarea = ta
+				m.pasteMode = true
+				m.phase = addPhaseInput
+				return m, textarea.Blink
+			case 2: // Enter manually
+				m.goManual = true
+				return m, tea.Quit
+			}
 		}
 		return m, nil
 	}
@@ -316,6 +370,8 @@ func (m AddModel) View() string {
 	switch m.phase {
 	case addPhaseProgress, addPhaseResult:
 		sb.WriteString(m.viewProgress(contentHeight))
+	case addPhaseMode:
+		sb.WriteString(m.viewModeSelect(contentHeight))
 	default:
 		sb.WriteString(m.viewInput(contentHeight))
 	}
@@ -323,6 +379,37 @@ func (m AddModel) View() string {
 	sb.WriteString("\n")
 	sb.WriteString(renderAddFooter(m.pasteMode, m.phase, m.width))
 
+	return sb.String()
+}
+
+var modeOptions = []string{
+	"From a URL",
+	"Paste recipe text",
+	"Enter manually",
+}
+
+func (m AddModel) viewModeSelect(contentHeight int) string {
+	var sb strings.Builder
+	sb.WriteString("\n")
+	sb.WriteString(MutedStyle.Render("  How would you like to add this recipe?"))
+	sb.WriteString("\n\n")
+
+	for i, opt := range modeOptions {
+		if i == m.modeIdx {
+			sb.WriteString(lipgloss.NewStyle().
+				Foreground(ColorPrimary).
+				Bold(true).
+				Render("  ▶ " + opt))
+		} else {
+			sb.WriteString(MutedStyle.Render("    " + opt))
+		}
+		sb.WriteString("\n")
+	}
+
+	used := strings.Count(sb.String(), "\n")
+	for i := used; i < contentHeight; i++ {
+		sb.WriteString("\n")
+	}
 	return sb.String()
 }
 
@@ -444,6 +531,8 @@ func renderAddFooter(pasteMode bool, phase addPhase, width int) string {
 		keys = []string{"ctrl+c quit"}
 	case addPhaseResult:
 		keys = []string{"a add another", "h home", "q quit"}
+	case addPhaseMode:
+		keys = []string{"↑/↓ select", "enter confirm", "esc back"}
 	default:
 		if pasteMode {
 			keys = []string{"ctrl+d submit", "esc back"}
@@ -463,13 +552,13 @@ func renderAddFooter(pasteMode bool, phase addPhase, width int) string {
 // RunAddUI runs the full-screen add recipe TUI.
 // Returns the new recipe ID (>0 on pipeline success), navigation signals, and any pipeline error.
 // A non-nil pipeErr means the error was already shown in the TUI.
-func RunAddUI(pasteMode bool, initialURL string, fn PipelineLaunchFn) (recipeID int64, goHome bool, goAdd bool, pipeErr error) {
+func RunAddUI(pasteMode bool, initialURL string, fn PipelineLaunchFn) (recipeID int64, goHome bool, goAdd bool, goManual bool, pipeErr error) {
 	m := NewAddModel(pasteMode, initialURL, fn)
 	p := tea.NewProgram(m, tea.WithAltScreen())
 	final, err := p.Run()
 	if err != nil {
-		return 0, false, false, err
+		return 0, false, false, false, err
 	}
 	fm := final.(AddModel)
-	return fm.RecipeID(), fm.GoHome(), fm.GoAdd(), fm.PipeErr()
+	return fm.RecipeID(), fm.GoHome(), fm.GoAdd(), fm.GoManual(), fm.PipeErr()
 }

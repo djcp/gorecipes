@@ -53,6 +53,7 @@ type DetailModel struct {
 
 	goHome          bool
 	goAdd           bool
+	goEdit          bool
 	returnQuery     string
 	confirmingDelete bool
 	deleteConfirmed  bool
@@ -73,6 +74,9 @@ func (m DetailModel) GoHome() bool { return m.goHome }
 
 // GoAdd returns true when the user pressed "a" to add a new recipe.
 func (m DetailModel) GoAdd() bool { return m.goAdd }
+
+// GoEdit returns true when the user pressed "e" to edit the recipe.
+func (m DetailModel) GoEdit() bool { return m.goEdit }
 
 // DeleteConfirmed returns true when the user confirmed deletion of the recipe.
 func (m DetailModel) DeleteConfirmed() bool { return m.deleteConfirmed }
@@ -193,6 +197,10 @@ func (m DetailModel) handleNavKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	case "a":
 		m.goAdd = true
+		return m, tea.Quit
+
+	case "e":
+		m.goEdit = true
 		return m, tea.Quit
 
 	case "d":
@@ -523,6 +531,7 @@ func renderDetailFooter(focus detailFocus, width int) string {
 		"↑/↓ scroll",
 		"/ search",
 		homeStyle.Render("h home"),
+		MutedStyle.Render("e edit"),
 		MutedStyle.Render("a add"),
 		MutedStyle.Render("d delete"),
 		"q quit",
@@ -545,14 +554,14 @@ func min(a, b int) int {
 }
 
 // RunDetailUI runs the interactive recipe detail TUI.
-// Returns goHome, goAdd, deleteConfirmed booleans, the search query, and any error.
-func RunDetailUI(recipe *models.Recipe) (goHome bool, goAdd bool, deleteConfirmed bool, searchQuery string, err error) {
+// Returns goHome, goAdd, goEdit, deleteConfirmed booleans, the search query, and any error.
+func RunDetailUI(recipe *models.Recipe) (goHome bool, goAdd bool, goEdit bool, deleteConfirmed bool, searchQuery string, err error) {
 	m := NewDetailModel(recipe)
 	p := tea.NewProgram(m, tea.WithAltScreen())
 	final, runErr := p.Run()
 	if runErr != nil {
-		return false, false, false, "", runErr
+		return false, false, false, false, "", runErr
 	}
 	fm := final.(DetailModel)
-	return fm.GoHome(), fm.GoAdd(), fm.DeleteConfirmed(), fm.ReturnQuery(), nil
+	return fm.GoHome(), fm.GoAdd(), fm.GoEdit(), fm.DeleteConfirmed(), fm.ReturnQuery(), nil
 }

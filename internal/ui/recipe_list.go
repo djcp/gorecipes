@@ -25,6 +25,7 @@ type ListModel struct {
 	goAdd           bool
 	goHome          bool
 	searchConfirmed bool
+	editID          int64
 
 	// Delete confirmation state.
 	confirmingDelete bool
@@ -58,6 +59,9 @@ func (m ListModel) SearchConfirmed() bool { return m.searchConfirmed }
 
 // DeleteTargetID returns the recipe ID the user confirmed for deletion (0 if none).
 func (m ListModel) DeleteTargetID() int64 { return m.deleteTargetID }
+
+// EditID returns the recipe ID the user wants to edit (0 if none).
+func (m ListModel) EditID() int64 { return m.editID }
 
 // Query returns the current search query.
 func (m ListModel) Query() string { return m.query }
@@ -130,6 +134,11 @@ func (m ListModel) handleNavKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "h":
 		m.goHome = true
 		return m, tea.Quit
+	case "e":
+		if len(m.recipes) > 0 {
+			m.editID = m.recipes[m.cursor].ID
+			return m, tea.Quit
+		}
 	case "d":
 		if len(m.recipes) > 0 {
 			m.confirmingDelete = true
@@ -200,6 +209,18 @@ func (m ListModel) View() string {
 		return sb.String()
 	}
 
+	// Empty DB — show a centered info box with fill so the footer stays pinned.
+	if len(m.recipes) == 0 && m.query == "" && !m.typing {
+		sb.WriteString(m.viewEmpty())
+		used := strings.Count(sb.String(), "\n")
+		if fill := m.height - used - 3; fill > 0 {
+			sb.WriteString(strings.Repeat("\n", fill))
+		}
+		sb.WriteString("\n")
+		sb.WriteString(renderFooter(m.width))
+		return sb.String()
+	}
+
 	// Search bar — only visible while the user is actively typing.
 	if m.typing {
 		sb.WriteString(renderSearchBar(m.query, m.typing, m.width))
@@ -207,7 +228,8 @@ func (m ListModel) View() string {
 	}
 
 	if len(m.recipes) == 0 {
-		sb.WriteString(MutedStyle.Render("  No recipes found."))
+		// A filter/search was active but returned nothing.
+		sb.WriteString(MutedStyle.Render(fmt.Sprintf(`  No recipes match "%s".`, m.query)))
 		sb.WriteString("\n")
 	} else {
 		visible := m.visibleRows()
@@ -323,6 +345,7 @@ func renderFooter(width int) string {
 		"↑/↓ navigate",
 		"/ search",
 		"enter view",
+		"e edit",
 		"d delete",
 		"a add",
 		"h home",
@@ -335,6 +358,26 @@ func renderFooter(width int) string {
 		BorderForeground(ColorBorder).
 		Width(width - 2).
 		Render(line)
+}
+
+func (m ListModel) viewEmpty() string {
+	inner := lipgloss.JoinVertical(lipgloss.Left,
+		lipgloss.NewStyle().Bold(true).Foreground(ColorPrimary).Render("No recipes yet"),
+		"",
+		MutedStyle.Render("Press a to add your first — from a URL,"),
+		MutedStyle.Render("pasted text, or entered manually."),
+	)
+	box := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(ColorBorder).
+		Padding(1, 3).
+		Render(inner)
+
+	var sb strings.Builder
+	sb.WriteString("\n\n")
+	sb.WriteString(lipgloss.PlaceHorizontal(m.width, lipgloss.Center, box))
+	sb.WriteString("\n")
+	return sb.String()
 }
 
 func (m ListModel) viewConfirm() string {
@@ -386,14 +429,15 @@ func truncate(s string, max int) string {
 // RunListUI runs the interactive recipe browser.
 // Returns the selected recipe ID (or 0), whether the user pressed "a" to add,
 // whether the user pressed "h" to go home, whether the user confirmed a search,
-// the search query, the recipe ID confirmed for deletion (or 0), and any error.
-func RunListUI(recipes []models.Recipe, initialQuery string) (selectedID int64, goAdd bool, goHome bool, searchConfirmed bool, searchQuery string, deleteID int64, err error) {
+// the search query, the recipe ID confirmed for deletion (or 0), the recipe ID
+// to edit (or 0), and any error.
+func RunListUI(recipes []models.Recipe, initialQuery string) (selectedID int64, goAdd bool, goHome bool, searchConfirmed bool, searchQuery string, deleteID int64, editID int64, err error) {
 	m := NewListModel(recipes, initialQuery)
 	p := tea.NewProgram(m, tea.WithAltScreen())
 	final, runErr := p.Run()
 	if runErr != nil {
-		return 0, false, false, false, "", 0, runErr
+		return 0, false, false, false, "", 0, 0, runErr
 	}
 	fm := final.(ListModel)
-	return fm.SelectedID(), fm.GoAdd(), fm.GoHome(), fm.SearchConfirmed(), fm.Query(), fm.DeleteTargetID(), nil
+	return fm.SelectedID(), fm.GoAdd(), fm.GoHome(), fm.SearchConfirmed(), fm.Query(), fm.DeleteTargetID(), fm.EditID(), nil
 }
