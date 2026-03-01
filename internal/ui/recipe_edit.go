@@ -29,7 +29,6 @@ const (
 	efCookTime
 	efServings
 	efServingUnits
-	efSourceURL
 	efTagCourses
 	efTagCooking
 	efTagCultural
@@ -107,7 +106,7 @@ type EditModel struct {
 	cookInput         textinput.Model
 	servingsInput     textinput.Model
 	servingUnitsInput textinput.Model
-	sourceURLInput    textinput.Model
+	sourceURL         string // read-only; preserved as-is on save
 	directionsInput   textarea.Model
 
 	// context → selected pills
@@ -170,10 +169,6 @@ func newEditModel(recipe *models.Recipe, data EditData) EditModel {
 	m.servingUnitsInput.Placeholder = "servings"
 	m.servingUnitsInput.Width = 12
 
-	m.sourceURLInput = textinput.New()
-	m.sourceURLInput.Placeholder = "https://..."
-	m.sourceURLInput.Width = 40
-
 	// Build textarea inputs.
 	m.descInput = textarea.New()
 	m.descInput.Placeholder = "Short description..."
@@ -214,7 +209,7 @@ func newEditModel(recipe *models.Recipe, data EditData) EditModel {
 			m.servingsInput.SetValue(strconv.Itoa(*recipe.Servings))
 		}
 		m.servingUnitsInput.SetValue(recipe.ServingUnits)
-		m.sourceURLInput.SetValue(recipe.SourceURL)
+		m.sourceURL = recipe.SourceURL
 		m.directionsInput.SetValue(recipe.Directions)
 
 		// Load tag pills.
@@ -267,7 +262,6 @@ func (m EditModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Resize text inputs to fit.
 		formWidth := m.formWidth()
 		m.nameInput.Width = formWidth - 14
-		m.sourceURLInput.Width = formWidth - 14
 		m.descInput.SetWidth(formWidth - 4)
 		m.directionsInput.SetWidth(formWidth - 4)
 		return m, nil
@@ -358,10 +352,6 @@ func (m EditModel) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case efServingUnits:
 		var cmd tea.Cmd
 		m, m.servingUnitsInput, cmd = m.handleTextInput(msg, m.servingUnitsInput)
-		return m, cmd
-	case efSourceURL:
-		var cmd tea.Cmd
-		m, m.sourceURLInput, cmd = m.handleTextInput(msg, m.sourceURLInput)
 		return m, cmd
 
 	case efTagCourses, efTagCooking, efTagCultural, efTagDietary:
@@ -668,8 +658,6 @@ func (m *EditModel) blurCurrent() {
 		m.servingsInput.Blur()
 	case efServingUnits:
 		m.servingUnitsInput.Blur()
-	case efSourceURL:
-		m.sourceURLInput.Blur()
 	case efTagCourses, efTagCooking, efTagCultural, efTagDietary:
 		ctx := tagContextForFocus[m.focused]
 		ti := m.tagInputs[ctx]
@@ -698,8 +686,6 @@ func (m *EditModel) focusCurrent() {
 		m.servingsInput.Focus()
 	case efServingUnits:
 		m.servingUnitsInput.Focus()
-	case efSourceURL:
-		m.sourceURLInput.Focus()
 	case efTagCourses, efTagCooking, efTagCultural, efTagDietary:
 		ctx := tagContextForFocus[m.focused]
 		ti := m.tagInputs[ctx]
@@ -883,9 +869,13 @@ func (m EditModel) buildForm() string {
 		renderInlineField(m.servingUnitsInput, focused(efServingUnits)))
 	sb.WriteString("\n")
 
-	// Source URL.
-	sb.WriteString(renderField("Source URL:", m.sourceURLInput, focused(efSourceURL)))
-	sb.WriteString("\n\n")
+	// Source URL — read-only; displayed only when present.
+	if m.sourceURL != "" {
+		lbl := MutedStyle.Width(14).Render("Source URL:")
+		url := lipgloss.NewStyle().Foreground(ColorPrimary).Render(truncate(m.sourceURL, w-20))
+		sb.WriteString("  " + lbl + url)
+		sb.WriteString("\n\n")
+	}
 
 	// Tag sections — when focused, embed label + pills inside the bordered box
 	// and use MarginLeft(2) so all border lines are indented consistently.
@@ -994,7 +984,7 @@ func (m EditModel) assembleRecipe() (*models.Recipe, map[string][]string) {
 	r.Status = editStatusOptions[m.statusIdx]
 	r.Description = strings.TrimSpace(m.descInput.Value())
 	r.Directions = strings.TrimSpace(m.directionsInput.Value())
-	r.SourceURL = strings.TrimSpace(m.sourceURLInput.Value())
+	r.SourceURL = m.sourceURL
 	r.ServingUnits = strings.TrimSpace(m.servingUnitsInput.Value())
 
 	if v, err := strconv.Atoi(strings.TrimSpace(m.prepInput.Value())); err == nil && v > 0 {
