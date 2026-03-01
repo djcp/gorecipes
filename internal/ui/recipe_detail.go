@@ -55,7 +55,7 @@ type DetailModel struct {
 	goAdd           bool
 	goEdit          bool
 	goPrint         bool
-	goConfig        bool
+	goManage        bool
 	returnQuery     string
 	confirmingDelete bool
 	deleteConfirmed  bool
@@ -83,8 +83,8 @@ func (m DetailModel) GoEdit() bool { return m.goEdit }
 // GoPrint returns true when the user pressed "p" to open print preview.
 func (m DetailModel) GoPrint() bool { return m.goPrint }
 
-// GoConfig returns true when the user pressed "c" to open the config screen.
-func (m DetailModel) GoConfig() bool { return m.goConfig }
+// GoManage returns true when the user pressed "m" to open the manage screen.
+func (m DetailModel) GoManage() bool { return m.goManage }
 
 // DeleteConfirmed returns true when the user confirmed deletion of the recipe.
 func (m DetailModel) DeleteConfirmed() bool { return m.deleteConfirmed }
@@ -215,8 +215,8 @@ func (m DetailModel) handleNavKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.goPrint = true
 		return m, tea.Quit
 
-	case "c":
-		m.goConfig = true
+	case "m":
+		m.goManage = true
 		return m, tea.Quit
 
 	case "d":
@@ -539,7 +539,7 @@ func renderDetailFooter(focus detailFocus, width int) string {
 		MutedStyle.Render("🖨  p print"),
 		MutedStyle.Render("➕ a add"),
 		MutedStyle.Render("🗑 d delete"),
-		MutedStyle.Render("⚙ c config"),
+		MutedStyle.Render("⚙ m manage"),
 		"🚪 q quit",
 	}
 
@@ -560,7 +560,7 @@ func min(a, b int) int {
 
 // RunDetailUI runs the interactive recipe detail TUI.
 // Returns navigation signals, whether the user confirmed deletion, the search query, and any error.
-func RunDetailUI(recipe *models.Recipe) (goHome bool, goAdd bool, goEdit bool, goPrint bool, goConfig bool, deleteConfirmed bool, searchQuery string, err error) {
+func RunDetailUI(recipe *models.Recipe) (goHome bool, goAdd bool, goEdit bool, goPrint bool, goManage bool, deleteConfirmed bool, searchQuery string, err error) {
 	m := NewDetailModel(recipe)
 	p := tea.NewProgram(m, tea.WithAltScreen())
 	final, runErr := p.Run()
@@ -568,5 +568,5 @@ func RunDetailUI(recipe *models.Recipe) (goHome bool, goAdd bool, goEdit bool, g
 		return false, false, false, false, false, false, "", runErr
 	}
 	fm := final.(DetailModel)
-	return fm.GoHome(), fm.GoAdd(), fm.GoEdit(), fm.GoPrint(), fm.GoConfig(), fm.DeleteConfirmed(), fm.ReturnQuery(), nil
+	return fm.GoHome(), fm.GoAdd(), fm.GoEdit(), fm.GoPrint(), fm.GoManage(), fm.DeleteConfirmed(), fm.ReturnQuery(), nil
 }

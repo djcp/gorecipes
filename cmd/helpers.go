@@ -24,6 +24,40 @@ func runConfigUI() error {
 	return nil
 }
 
+// runManageUI runs the manage landing page and dispatches to sub-sections in a loop.
+func runManageUI() error {
+	for {
+		section, err := ui.RunManageUI()
+		if err != nil {
+			return err
+		}
+		switch section {
+		case ui.ManageSectionConfig:
+			if err := runConfigUI(); err != nil {
+				return err
+			}
+		case ui.ManageSectionTags:
+			if err := ui.RunManageTagsUI(sqlDB); err != nil {
+				return err
+			}
+		case ui.ManageSectionIngredients:
+			if err := ui.RunManageIngredientsUI(sqlDB); err != nil {
+				return err
+			}
+		case ui.ManageSectionUnits:
+			if err := ui.RunManageUnitsUI(sqlDB); err != nil {
+				return err
+			}
+		case ui.ManageSectionAIRuns:
+			if err := ui.RunManageAIRunsUI(sqlDB); err != nil {
+				return err
+			}
+		default: // ManageSectionBack
+			return nil
+		}
+	}
+}
+
 func loadEditData() (ui.EditData, error) {
 	ingNames, err := db.AllIngredientNames(sqlDB)
 	if err != nil {

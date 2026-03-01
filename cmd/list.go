@@ -82,11 +82,11 @@ func runList(_ *cobra.Command, _ []string) error {
 			selectedID = pendingDetailID
 			pendingDetailID = 0
 		} else {
-			var goAdd, goHome, goConfig, searchConfirmed bool
+			var goAdd, goHome, goManage, searchConfirmed bool
 			var searchQuery string
 			var deleteID, editID int64
 
-			selectedID, goAdd, goHome, searchConfirmed, searchQuery, deleteID, editID, goConfig, err = ui.RunListUI(recipes, filter.Query)
+			selectedID, goAdd, goHome, searchConfirmed, searchQuery, deleteID, editID, goManage, err = ui.RunListUI(recipes, filter.Query)
 			if err != nil {
 				return err
 			}
@@ -98,8 +98,8 @@ func runList(_ *cobra.Command, _ []string) error {
 				filter.Query = searchQuery
 				continue
 			}
-			if goConfig {
-				if err := runConfigUI(); err != nil {
+			if goManage {
+				if err := runManageUI(); err != nil {
 					return err
 				}
 				continue
@@ -140,7 +140,7 @@ func runList(_ *cobra.Command, _ []string) error {
 			return err
 		}
 
-		goHome, goAdd, goEdit, goPrint, goConfig, deleteConfirmed, searchQuery, err := ui.RunDetailUI(recipe)
+		goHome, goAdd, goEdit, goPrint, goManage, deleteConfirmed, searchQuery, err := ui.RunDetailUI(recipe)
 		if err != nil {
 			return err
 		}
@@ -151,8 +151,8 @@ func runList(_ *cobra.Command, _ []string) error {
 			filter.Query = ""
 			continue
 		}
-		if goConfig {
-			if err := runConfigUI(); err != nil {
+		if goManage {
+			if err := runManageUI(); err != nil {
 				return err
 			}
 			pendingDetailID = recipe.ID
