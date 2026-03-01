@@ -9,6 +9,13 @@ import (
 	"strings"
 )
 
+// Options configures per-export behaviour. Pass a zero value for defaults.
+type Options struct {
+	// Credits is displayed left-aligned in the export footer alongside the
+	// version attribution. Use it to claim recipe authorship.
+	Credits string
+}
+
 var nonAlphanumRe = regexp.MustCompile(`[^a-z0-9]+`)
 
 // SafeFilename returns a URL-safe slug from a recipe name (no extension).

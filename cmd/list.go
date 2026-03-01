@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/djcp/gorecipes/internal/db"
+	"github.com/djcp/gorecipes/internal/export"
 	"github.com/djcp/gorecipes/internal/ui"
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
@@ -81,11 +82,11 @@ func runList(_ *cobra.Command, _ []string) error {
 			selectedID = pendingDetailID
 			pendingDetailID = 0
 		} else {
-			var goAdd, goHome, searchConfirmed bool
+			var goAdd, goHome, goConfig, searchConfirmed bool
 			var searchQuery string
 			var deleteID, editID int64
 
-			selectedID, goAdd, goHome, searchConfirmed, searchQuery, deleteID, editID, err = ui.RunListUI(recipes, filter.Query)
+			selectedID, goAdd, goHome, searchConfirmed, searchQuery, deleteID, editID, goConfig, err = ui.RunListUI(recipes, filter.Query)
 			if err != nil {
 				return err
 			}
@@ -95,6 +96,12 @@ func runList(_ *cobra.Command, _ []string) error {
 			}
 			if searchConfirmed {
 				filter.Query = searchQuery
+				continue
+			}
+			if goConfig {
+				if err := runConfigUI(); err != nil {
+					return err
+				}
 				continue
 			}
 			if deleteID > 0 {
@@ -137,7 +144,7 @@ func runList(_ *cobra.Command, _ []string) error {
 			return err
 		}
 
-		goHome, goAdd, goEdit, goPrint, deleteConfirmed, searchQuery, err := ui.RunDetailUI(recipe)
+		goHome, goAdd, goEdit, goPrint, goConfig, deleteConfirmed, searchQuery, err := ui.RunDetailUI(recipe)
 		if err != nil {
 			return err
 		}
@@ -148,8 +155,15 @@ func runList(_ *cobra.Command, _ []string) error {
 			filter.Query = ""
 			continue
 		}
+		if goConfig {
+			if err := runConfigUI(); err != nil {
+				return err
+			}
+			pendingDetailID = recipe.ID
+			continue
+		}
 		if goPrint {
-			if err := ui.RunPrintUI(recipe); err != nil {
+			if err := ui.RunPrintUI(recipe, export.Options{Credits: cfg.Credits}); err != nil {
 				return err
 			}
 			pendingDetailID = recipe.ID

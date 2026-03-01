@@ -34,6 +34,7 @@ var exportFormats = []struct {
 // PrintModel is a full-screen print preview with integrated export/print dialog.
 type PrintModel struct {
 	recipe    *models.Recipe
+	opts      export.Options
 	phase     printPhase
 	lines     []string // pre-rendered text preview lines
 	scroll    int
@@ -45,9 +46,9 @@ type PrintModel struct {
 	goBack    bool
 }
 
-func newPrintModel(recipe *models.Recipe) PrintModel {
-	m := PrintModel{recipe: recipe, width: 80, height: 24}
-	m.lines = buildPreviewLines(recipe)
+func newPrintModel(recipe *models.Recipe, opts export.Options) PrintModel {
+	m := PrintModel{recipe: recipe, opts: opts, width: 80, height: 24}
+	m.lines = m.buildPreviewLines()
 	return m
 }
 
@@ -74,7 +75,7 @@ func (m PrintModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
-		m.lines = buildPreviewLines(m.recipe)
+		m.lines = m.buildPreviewLines()
 		if m.scroll > m.maxScroll() {
 			m.scroll = m.maxScroll()
 		}
@@ -150,7 +151,7 @@ func (m PrintModel) execute() PrintModel {
 	f := exportFormats[m.cursor]
 	if f.ext == "" {
 		// Print to system printer
-		err := printToPrinter(m.recipe.Name, export.ToText(m.recipe))
+		err := printToPrinter(m.recipe.Name, export.ToText(m.recipe, m.opts))
 		if err != nil {
 			m.isError = true
 			m.resultMsg = "Error: " + err.Error()
@@ -170,13 +171,13 @@ func (m PrintModel) execute() PrintModel {
 		var data []byte
 		switch f.ext {
 		case "txt":
-			data = []byte(export.ToText(m.recipe))
+			data = []byte(export.ToText(m.recipe, m.opts))
 		case "md":
-			data = []byte(export.ToMarkdown(m.recipe))
+			data = []byte(export.ToMarkdown(m.recipe, m.opts))
 		case "rtf":
-			data = []byte(export.ToRTF(m.recipe))
+			data = []byte(export.ToRTF(m.recipe, m.opts))
 		case "pdf":
-			data, err = export.ToPDF(m.recipe)
+			data, err = export.ToPDF(m.recipe, m.opts)
 			if err != nil {
 				m.isError = true
 				m.resultMsg = "Error: " + err.Error()
@@ -317,8 +318,8 @@ func (m PrintModel) renderResult(sb *strings.Builder) {
 
 // buildPreviewLines produces a []string of terminal lines for the preview
 // viewport, with recipe name and section headers highlighted.
-func buildPreviewLines(r *models.Recipe) []string {
-	raw := export.ToText(r)
+func (m PrintModel) buildPreviewLines() []string {
+	raw := export.ToText(m.recipe, m.opts)
 	rawLines := strings.Split(raw, "\n")
 	lines := make([]string, 0, len(rawLines))
 	for i, line := range rawLines {
@@ -405,8 +406,9 @@ func renderFormatSelectFooter(width int) string {
 }
 
 // RunPrintUI runs the interactive print preview TUI for the given recipe.
-func RunPrintUI(recipe *models.Recipe) error {
-	m := newPrintModel(recipe)
+// opts controls export behaviour, notably Credits for file footer attribution.
+func RunPrintUI(recipe *models.Recipe, opts export.Options) error {
+	m := newPrintModel(recipe, opts)
 	p := tea.NewProgram(m, tea.WithAltScreen())
 	_, err := p.Run()
 	return err

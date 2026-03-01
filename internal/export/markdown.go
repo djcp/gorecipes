@@ -9,7 +9,7 @@ import (
 )
 
 // ToMarkdown renders a recipe as a Markdown document.
-func ToMarkdown(r *models.Recipe) string {
+func ToMarkdown(r *models.Recipe, opts Options) string {
 	var sb strings.Builder
 
 	sb.WriteString("# " + r.Name + "\n\n")
@@ -72,8 +72,16 @@ func ToMarkdown(r *models.Recipe) string {
 		sb.WriteString("\n---\n\nSource: " + r.SourceURL + "\n")
 	}
 
-	// Attribution footer — right-aligned, small text
-	sb.WriteString("\n<p align=\"right\"><sub>exported from gorecipes " + version.Version + "</sub></p>\n")
+	// Footer: credits left, version right.
+	versionStr := "exported from gorecipes " + version.Version
+	if opts.Credits != "" {
+		sb.WriteString("\n<table width=\"100%\"><tr>")
+		sb.WriteString("<td><sub>" + opts.Credits + "</sub></td>")
+		sb.WriteString("<td align=\"right\"><sub>" + versionStr + "</sub></td>")
+		sb.WriteString("</tr></table>\n")
+	} else {
+		sb.WriteString("\n<p align=\"right\"><sub>" + versionStr + "</sub></p>\n")
+	}
 
 	return sb.String()
 }

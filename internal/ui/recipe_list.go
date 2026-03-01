@@ -24,6 +24,7 @@ type ListModel struct {
 	quitting        bool
 	goAdd           bool
 	goHome          bool
+	goConfig        bool
 	searchConfirmed bool
 	editID          int64
 
@@ -62,6 +63,9 @@ func (m ListModel) DeleteTargetID() int64 { return m.deleteTargetID }
 
 // EditID returns the recipe ID the user wants to edit (0 if none).
 func (m ListModel) EditID() int64 { return m.editID }
+
+// GoConfig returns true when the user pressed "c" to open the config screen.
+func (m ListModel) GoConfig() bool { return m.goConfig }
 
 // Query returns the current search query.
 func (m ListModel) Query() string { return m.query }
@@ -130,6 +134,9 @@ func (m ListModel) handleNavKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, tea.Quit
 	case "a":
 		m.goAdd = true
+		return m, tea.Quit
+	case "c":
+		m.goConfig = true
 		return m, tea.Quit
 	case "h":
 		m.goHome = true
@@ -268,18 +275,9 @@ func renderBanner(width int) string {
 		Foreground(ColorPrimary).
 		Render("🍳  gorecipes")
 
-	addHint := MutedStyle.Render("a  add")
-
-	// contentWidth is the space inside the border minus left+right padding (2 each).
-	contentWidth := width - 6
-	gap := contentWidth - lipgloss.Width(appName) - lipgloss.Width(addHint)
-	if gap < 1 {
-		gap = 1
-	}
-
 	title := lipgloss.NewStyle().
 		Padding(1, 2).
-		Render(appName + strings.Repeat(" ", gap) + addHint)
+		Render(appName)
 
 	return lipgloss.NewStyle().
 		Border(lipgloss.NormalBorder(), false, false, true, false).
@@ -349,6 +347,7 @@ func renderFooter(width int) string {
 		"🗑 d delete",
 		"➕ a add",
 		"🏠 h home",
+		"⚙ c config",
 		"🚪 q quit",
 	}
 	return lipgloss.NewStyle().
@@ -426,17 +425,16 @@ func truncate(s string, max int) string {
 }
 
 // RunListUI runs the interactive recipe browser.
-// Returns the selected recipe ID (or 0), whether the user pressed "a" to add,
-// whether the user pressed "h" to go home, whether the user confirmed a search,
-// the search query, the recipe ID confirmed for deletion (or 0), the recipe ID
-// to edit (or 0), and any error.
-func RunListUI(recipes []models.Recipe, initialQuery string) (selectedID int64, goAdd bool, goHome bool, searchConfirmed bool, searchQuery string, deleteID int64, editID int64, err error) {
+// Returns the selected recipe ID (or 0), navigation signals, the search query,
+// the recipe ID confirmed for deletion (or 0), the recipe ID to edit (or 0),
+// whether the user pressed "c" to open config, and any error.
+func RunListUI(recipes []models.Recipe, initialQuery string) (selectedID int64, goAdd bool, goHome bool, searchConfirmed bool, searchQuery string, deleteID int64, editID int64, goConfig bool, err error) {
 	m := NewListModel(recipes, initialQuery)
 	p := tea.NewProgram(m, tea.WithAltScreen())
 	final, runErr := p.Run()
 	if runErr != nil {
-		return 0, false, false, false, "", 0, 0, runErr
+		return 0, false, false, false, "", 0, 0, false, runErr
 	}
 	fm := final.(ListModel)
-	return fm.SelectedID(), fm.GoAdd(), fm.GoHome(), fm.SearchConfirmed(), fm.Query(), fm.DeleteTargetID(), fm.EditID(), nil
+	return fm.SelectedID(), fm.GoAdd(), fm.GoHome(), fm.SearchConfirmed(), fm.Query(), fm.DeleteTargetID(), fm.EditID(), fm.GoConfig(), nil
 }

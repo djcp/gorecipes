@@ -19,6 +19,9 @@ type Config struct {
 	AnthropicAPIKey string `json:"anthropic_api_key"`
 	AnthropicModel  string `json:"anthropic_model"`
 	DBPath          string `json:"db_path"`
+	// Credits is displayed left-aligned in the footer of exported recipe files.
+	// Use it to claim authorship (e.g. "Chef Jane Smith · myrecipeblog.com").
+	Credits string `json:"credits,omitempty"`
 }
 
 // Load reads config from the XDG config directory.

@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/djcp/gorecipes/internal/db"
+	"github.com/djcp/gorecipes/internal/export"
 	"github.com/djcp/gorecipes/internal/models"
 	"github.com/djcp/gorecipes/internal/services"
 	"github.com/djcp/gorecipes/internal/ui"
@@ -159,7 +160,7 @@ func runAddQuiet(sourceURL string) error {
 // runDetailLoop opens the detail view for a recipe and handles navigation signals.
 func runDetailLoop(recipe *models.Recipe) error {
 	for {
-		goHome, goAdd, goEdit, goPrint, deleteConfirmed, searchQuery, err := ui.RunDetailUI(recipe)
+		goHome, goAdd, goEdit, goPrint, goConfig, deleteConfirmed, searchQuery, err := ui.RunDetailUI(recipe)
 		if err != nil {
 			return err
 		}
@@ -169,8 +170,14 @@ func runDetailLoop(recipe *models.Recipe) error {
 			}
 			return runList(nil, nil)
 		}
+		if goConfig {
+			if err := runConfigUI(); err != nil {
+				return err
+			}
+			continue
+		}
 		if goPrint {
-			if err := ui.RunPrintUI(recipe); err != nil {
+			if err := ui.RunPrintUI(recipe, export.Options{Credits: cfg.Credits}); err != nil {
 				return err
 			}
 			continue

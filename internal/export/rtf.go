@@ -9,7 +9,7 @@ import (
 )
 
 // ToRTF renders a recipe as an RTF 1.x document (cp1252 encoding).
-func ToRTF(r *models.Recipe) string {
+func ToRTF(r *models.Recipe, opts Options) string {
 	var sb strings.Builder
 
 	// \ansicpg1252 declares the default code page explicitly so RTF readers
@@ -85,9 +85,20 @@ func ToRTF(r *models.Recipe) string {
 		sb.WriteString(fmt.Sprintf("{\\fs18\\cf3 Source: %s\\cf0\\par}\n", rtfEnc(r.SourceURL)))
 	}
 
-	// Attribution footer — right-aligned, 50% gray
-	sb.WriteString(fmt.Sprintf("{\\pard\\qr\\fs16\\cf4 exported from gorecipes %s\\cf0\\par}\n",
-		rtfEnc(version.Version)))
+	// Footer: credits left, version right — on the same line.
+	// \tqr\tx9360 places a right-aligned tab stop at 9360 twips (6.5", the text
+	// width of a Letter page with standard 1-inch margins). \tab jumps to it so
+	// the version lands flush-right while credits sit flush-left.
+	if opts.Credits != "" {
+		sb.WriteString(fmt.Sprintf(
+			"{\\pard\\tqr\\tx9360\\fs16\\cf3 %s\\cf4\\tab exported from gorecipes %s\\cf0\\par}\n",
+			rtfEnc(opts.Credits),
+			rtfEnc(version.Version),
+		))
+	} else {
+		sb.WriteString(fmt.Sprintf("{\\pard\\qr\\fs16\\cf4 exported from gorecipes %s\\cf0\\par}\n",
+			rtfEnc(version.Version)))
+	}
 
 	sb.WriteString("}\n")
 	return sb.String()

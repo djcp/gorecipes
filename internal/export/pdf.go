@@ -10,7 +10,7 @@ import (
 )
 
 // ToPDF renders a recipe as a PDF document (Letter size).
-func ToPDF(r *models.Recipe) ([]byte, error) {
+func ToPDF(r *models.Recipe, opts Options) ([]byte, error) {
 	f := fpdf.New("P", "mm", "Letter", "")
 	// tr converts UTF-8 strings to cp1252 (the encoding used by core PDF fonts
 	// like Helvetica). Without this, multi-byte UTF-8 sequences for characters
@@ -100,7 +100,7 @@ func ToPDF(r *models.Recipe) ([]byte, error) {
 		f.MultiCell(pw, 5, tr("Source: "+r.SourceURL), "", "L", false)
 	}
 
-	// Attribution footer — right-aligned, 50% gray
+	// Footer: credits left, version right, separated by a thin rule.
 	f.Ln(8)
 	f.SetDrawColor(200, 200, 200)
 	f.SetLineWidth(0.2)
@@ -108,7 +108,14 @@ func ToPDF(r *models.Recipe) ([]byte, error) {
 	f.Ln(3)
 	f.SetFont("Helvetica", "I", 8)
 	f.SetTextColor(128, 128, 128)
-	f.MultiCell(pw, 5, tr("exported from gorecipes "+version.Version), "", "R", false)
+	versionStr := "exported from gorecipes " + version.Version
+	if opts.Credits != "" {
+		halfW := pw / 2
+		f.CellFormat(halfW, 5, tr(opts.Credits), "", 0, "L", false, 0, "")
+		f.CellFormat(halfW, 5, tr(versionStr), "", 1, "R", false, 0, "")
+	} else {
+		f.MultiCell(pw, 5, tr(versionStr), "", "R", false)
+	}
 
 	var buf bytes.Buffer
 	if err := f.Output(&buf); err != nil {

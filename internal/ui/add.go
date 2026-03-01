@@ -488,7 +488,7 @@ func (m AddModel) viewProgress(contentHeight int) string {
 	return sb.String()
 }
 
-// renderAddBanner renders a "🍳  gorecipes / Add Recipe" banner with a right-aligned "a  add" hint.
+// renderAddBanner renders a "🍳  gorecipes / Add Recipe" banner.
 func renderAddBanner(width int) string {
 	breadcrumb := lipgloss.NewStyle().
 		Bold(true).
@@ -503,18 +503,9 @@ func renderAddBanner(width int) string {
 					Render("Add Recipe"),
 		)
 
-	addHint := MutedStyle.Render("a  add")
-
-	// contentWidth is the space inside the border minus left+right padding (2 each).
-	contentWidth := width - 6
-	gap := contentWidth - lipgloss.Width(breadcrumb) - lipgloss.Width(addHint)
-	if gap < 1 {
-		gap = 1
-	}
-
 	title := lipgloss.NewStyle().
 		Padding(1, 2).
-		Render(breadcrumb + strings.Repeat(" ", gap) + addHint)
+		Render(breadcrumb)
 
 	return lipgloss.NewStyle().
 		Border(lipgloss.NormalBorder(), false, false, true, false).

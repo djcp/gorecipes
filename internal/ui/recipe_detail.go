@@ -55,6 +55,7 @@ type DetailModel struct {
 	goAdd           bool
 	goEdit          bool
 	goPrint         bool
+	goConfig        bool
 	returnQuery     string
 	confirmingDelete bool
 	deleteConfirmed  bool
@@ -81,6 +82,9 @@ func (m DetailModel) GoEdit() bool { return m.goEdit }
 
 // GoPrint returns true when the user pressed "p" to open print preview.
 func (m DetailModel) GoPrint() bool { return m.goPrint }
+
+// GoConfig returns true when the user pressed "c" to open the config screen.
+func (m DetailModel) GoConfig() bool { return m.goConfig }
 
 // DeleteConfirmed returns true when the user confirmed deletion of the recipe.
 func (m DetailModel) DeleteConfirmed() bool { return m.deleteConfirmed }
@@ -209,6 +213,10 @@ func (m DetailModel) handleNavKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	case "p":
 		m.goPrint = true
+		return m, tea.Quit
+
+	case "c":
+		m.goConfig = true
 		return m, tea.Quit
 
 	case "d":
@@ -481,14 +489,9 @@ func renderMarkdown(text string, width int) string {
 	return out
 }
 
-// renderDetailBanner renders the banner with a "gorecipes / Recipe Name" breadcrumb
-// and a right-aligned "a  add" hint.
+// renderDetailBanner renders the banner with a "gorecipes / Recipe Name" breadcrumb.
 func renderDetailBanner(name string, width int) string {
-	addHint := MutedStyle.Render("a  add")
-	addHintWidth := lipgloss.Width(addHint)
-
-	// Reserve space for breadcrumb: "🍳  gorecipes  /  " (~18 cols) plus the add hint and gap.
-	maxNameLen := width - 26 - addHintWidth - 2
+	maxNameLen := width - 26
 	if maxNameLen < 8 {
 		maxNameLen = 8
 	}
@@ -506,16 +509,9 @@ func renderDetailBanner(name string, width int) string {
 					Render(truncate(name, maxNameLen)),
 		)
 
-	// contentWidth is the space inside the border minus left+right padding (2 each).
-	contentWidth := width - 6
-	gap := contentWidth - lipgloss.Width(breadcrumb) - addHintWidth
-	if gap < 1 {
-		gap = 1
-	}
-
 	title := lipgloss.NewStyle().
 		Padding(1, 2).
-		Render(breadcrumb + strings.Repeat(" ", gap) + addHint)
+		Render(breadcrumb)
 
 	return lipgloss.NewStyle().
 		Border(lipgloss.NormalBorder(), false, false, true, false).
@@ -543,6 +539,7 @@ func renderDetailFooter(focus detailFocus, width int) string {
 		MutedStyle.Render("🖨  p print"),
 		MutedStyle.Render("➕ a add"),
 		MutedStyle.Render("🗑 d delete"),
+		MutedStyle.Render("⚙ c config"),
 		"🚪 q quit",
 	}
 
@@ -562,14 +559,14 @@ func min(a, b int) int {
 }
 
 // RunDetailUI runs the interactive recipe detail TUI.
-// Returns goHome, goAdd, goEdit, goPrint, deleteConfirmed booleans, the search query, and any error.
-func RunDetailUI(recipe *models.Recipe) (goHome bool, goAdd bool, goEdit bool, goPrint bool, deleteConfirmed bool, searchQuery string, err error) {
+// Returns navigation signals, whether the user confirmed deletion, the search query, and any error.
+func RunDetailUI(recipe *models.Recipe) (goHome bool, goAdd bool, goEdit bool, goPrint bool, goConfig bool, deleteConfirmed bool, searchQuery string, err error) {
 	m := NewDetailModel(recipe)
 	p := tea.NewProgram(m, tea.WithAltScreen())
 	final, runErr := p.Run()
 	if runErr != nil {
-		return false, false, false, false, false, "", runErr
+		return false, false, false, false, false, false, "", runErr
 	}
 	fm := final.(DetailModel)
-	return fm.GoHome(), fm.GoAdd(), fm.GoEdit(), fm.GoPrint(), fm.DeleteConfirmed(), fm.ReturnQuery(), nil
+	return fm.GoHome(), fm.GoAdd(), fm.GoEdit(), fm.GoPrint(), fm.GoConfig(), fm.DeleteConfirmed(), fm.ReturnQuery(), nil
 }

@@ -9,7 +9,7 @@ import (
 )
 
 // ToText renders a recipe as plain text.
-func ToText(r *models.Recipe) string {
+func ToText(r *models.Recipe, opts Options) string {
 	var sb strings.Builder
 
 	// Title + underline
@@ -71,9 +71,17 @@ func ToText(r *models.Recipe) string {
 		sb.WriteString("\nSource: " + r.SourceURL + "\n")
 	}
 
-	// Attribution footer — right-aligned at 80 columns
-	footer := "exported from gorecipes " + version.Version
-	sb.WriteString(fmt.Sprintf("\n%80s\n", footer))
+	// Footer: credits left-aligned, version right-aligned, at ~80 columns.
+	versionStr := "exported from gorecipes " + version.Version
+	if opts.Credits != "" {
+		gap := 80 - len([]rune(opts.Credits)) - len([]rune(versionStr))
+		if gap < 2 {
+			gap = 2
+		}
+		sb.WriteString("\n" + opts.Credits + strings.Repeat(" ", gap) + versionStr + "\n")
+	} else {
+		sb.WriteString(fmt.Sprintf("\n%80s\n", versionStr))
+	}
 
 	return sb.String()
 }
