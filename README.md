@@ -6,9 +6,12 @@ A CLI recipe manager that captures recipes from URLs or pasted text and uses Cla
 
 - **Add by URL** — fetch any recipe page; schema.org JSON-LD is parsed first with an HTML fallback
 - **Add by paste** — pipe or interactively paste raw recipe text
+- **Add manually** — fill in a full-screen form with autocomplete for ingredients, units, and tags
 - **AI extraction** — Claude parses free-form text into a structured recipe: named ingredients with quantity, unit, descriptor, and section; numbered directions; prep/cook time; servings; and four classification tag contexts (courses, cooking methods, cultural influences, dietary restrictions)
+- **Edit recipes** — open a pre-populated form from the list or detail view with `e`; supports the same autocomplete as manual entry
 - **Interactive browser** — full-screen recipe list with live `/` search and keyboard navigation
 - **Styled output** — ingredient tables, markdown-rendered directions, tag pills, and timing summaries in the terminal
+- **Quiet/scripted mode** — `add --quiet <url>` runs the pipeline silently and exits non-zero with an error on stderr on failure
 - **Onboarding** — prompts for an Anthropic API key on first run and stores it at `~/.config/gorecipes/config.json`
 - **Audit trail** — every AI call is recorded with its prompt, raw response, duration, and success/failure status
 - **No external dependencies at runtime** — single static binary; SQLite is compiled in with no CGO requirement
@@ -16,18 +19,30 @@ A CLI recipe manager that captures recipes from URLs or pasted text and uses Cla
 ## Commands
 
 ```
-gorecipes                    Open the interactive recipe browser (default)
-gorecipes add <url>          Add a recipe from a URL
-gorecipes add --paste        Add a recipe from pasted text
-gorecipes list               Open the interactive recipe browser
-gorecipes list --query foo   Non-interactive filtered list (also works when stdout is not a TTY)
-gorecipes show <id>          Display a recipe by ID
-gorecipes config             View or update configuration (API key, model)
+gorecipes                          Open the interactive recipe browser (default)
+gorecipes add                      Choose how to add: URL, paste, or manual form
+gorecipes add <url>                Add a recipe from a URL
+gorecipes add --paste              Add a recipe from pasted text
+gorecipes add --quiet <url>        Extract and save silently (for scripting)
+gorecipes list                     Open the interactive recipe browser
+gorecipes list --query foo         Non-interactive filtered list (also when stdout is not a TTY)
+gorecipes show <id>                Display a recipe by ID
+gorecipes config                   View or update configuration (API key, model)
 ```
 
 ### add
 
-Runs a three-step pipeline shown as inline progress:
+When run without a URL argument or `--paste`, a mode-selection screen appears:
+
+```
+  How would you like to add this recipe?
+
+  ▶ From a URL
+    Paste recipe text
+    Enter manually
+```
+
+**URL / paste modes** run a three-step pipeline shown as inline progress:
 
 ```
   ✓ Fetching recipe content
@@ -35,18 +50,72 @@ Runs a three-step pipeline shown as inline progress:
   ○ Saving to database
 ```
 
-On completion the recipe is printed in full. On failure the status is set to `processing_failed` and the recipe is preserved with its ID for inspection.
+On completion the recipe detail view opens. On pipeline failure the status is set to `processing_failed` and the recipe is preserved for inspection.
 
-### list
+**Manual mode** (`Enter manually` or `gorecipes add` → select the option) opens the edit form with all fields blank.
+
+**Quiet mode** (`-q` / `--quiet`) requires a URL argument, runs the pipeline with no TUI, and produces no output on success. On failure it exits with code 1 and writes the error to stderr — useful for automation:
+
+```sh
+gorecipes add -q https://example.com/recipe && echo "saved"
+```
+
+### list / browser
 
 Opens a full-screen browser:
 
-- **`↑` / `↓`** or **`j` / `k`** — navigate
-- **`/`** — type to filter by name or ingredient
-- **`enter`** — view recipe detail
-- **`q`** or **`esc`** — quit
+| Key | Action |
+|-----|--------|
+| `↑` / `↓` | Navigate |
+| `/` | Filter by name or ingredient (press Enter to confirm) |
+| `enter` | Open recipe detail |
+| `e` | Edit the selected recipe |
+| `d` | Delete (with confirmation) |
+| `a` | Add a new recipe |
+| `h` | Clear filter and go home |
+| `q` / `esc` | Quit |
+
+When the database is empty a centered prompt appears with instructions for adding a first recipe.
 
 Falls back to a plain table when stdout is not a TTY or `--query` is set.
+
+### Recipe detail view
+
+| Key | Action |
+|-----|--------|
+| `↑` / `↓` or `j` / `k` | Scroll |
+| `/` | Search (carries the query back to the list on `h`) |
+| `e` | Edit this recipe |
+| `a` | Add a new recipe |
+| `d` | Delete (with confirmation) |
+| `h` | Go back to the list |
+| `q` / `esc` | Quit |
+
+### Edit form
+
+Accessible via `e` from the list or detail view, or via "Enter manually" in the add flow. The form supports all recipe fields:
+
+- Name, status (draft / review / published), description
+- Prep time, cook time, servings, serving units, source URL
+- Tag pills for each context (courses, cooking methods, cultural influences, dietary restrictions)
+- Ingredient rows (quantity, unit, name, descriptor, section) with unlimited rows
+- Directions (Markdown)
+
+**Navigation:**
+
+| Key | Action |
+|-----|--------|
+| `tab` / `shift+tab` | Move between fields |
+| `↑` / `↓` (ingredient grid) | Move between ingredient rows |
+| `ctrl+a` | Add an ingredient row |
+| `ctrl+d` | Remove the current ingredient row |
+| `enter` (tag field) | Add the typed text as a tag pill |
+| `backspace` on empty tag input | Remove the last tag pill |
+| `◄` / `►` or `h` / `l` (status) | Cycle status |
+| `ctrl+s` | Save |
+| `esc` | Cancel without saving |
+
+**Autocomplete** is available on ingredient name and unit fields, and on each tag input, using values already in the database. Press `tab` to accept a suggestion; if no suggestion is active `tab` advances to the next field instead.
 
 ### config
 
@@ -121,7 +190,7 @@ draft → processing → review → published
                   ↘ processing_failed
 ```
 
-The CLI skips the `review` step and publishes immediately after successful extraction.
+The CLI skips the `review` step and publishes immediately after successful extraction. Manually created or edited recipes can be set to any status directly in the edit form.
 
 ### Tag contexts
 
@@ -146,13 +215,16 @@ The extraction pipeline has three stages, each recorded as an `ai_classifier_run
 Standard Go CLI framework. Handles subcommands, flags, and `--help` output with minimal boilerplate.
 
 ### [Charmbracelet / Bubbletea](https://github.com/charmbracelet/bubbletea)
-Elm-architecture TUI framework. Used for the interactive recipe browser and the add-command progress display. The `Msg`/`Update`/`View` pattern keeps UI state immutable and easily testable.
+Elm-architecture TUI framework. Used for the interactive recipe browser, add-command progress display, and edit form. The `Msg`/`Update`/`View` pattern keeps UI state immutable and easily testable.
+
+### [Charmbracelet / Bubbles](https://github.com/charmbracelet/bubbles)
+Reusable Bubbletea components. `textinput` and `textarea` drive the edit form fields, including inline autocomplete suggestions for ingredients, units, and tags.
 
 ### [Charmbracelet / Huh](https://github.com/charmbracelet/huh)
-Form and prompt library built on Bubbletea. Used for all interactive input: API key onboarding, URL prompts, text paste input, and config selection menus. Provides validation callbacks so errors surface inline before submission.
+Form and prompt library built on Bubbletea. Used for API key onboarding and config selection menus.
 
 ### [Charmbracelet / Lipgloss](https://github.com/charmbracelet/lipgloss)
-Declarative terminal styling — colors, borders, padding, width constraints. Drives the recipe detail view, status badges, tag pills, and the shared style palette in `internal/ui/styles.go`.
+Declarative terminal styling — colors, borders, padding, width constraints. Drives the recipe detail view, edit form, status badges, tag pills, and the shared style palette in `internal/ui/styles.go`.
 
 ### [Charmbracelet / Glamour](https://github.com/charmbracelet/glamour)
 Renders Markdown to styled terminal output. Used to display recipe directions, which Claude returns as numbered Markdown steps.
