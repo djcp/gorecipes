@@ -48,8 +48,9 @@ type manageIngredientsModel struct {
 	mergeTargetID   int64
 
 	// Result.
-	resultMsg string
-	resultErr bool
+	resultMsg    string
+	resultErr    bool
+	restoreIngID int64 // ID to seek to when returning to browse; 0 = clamp by cursor
 
 	width  int
 	height int
@@ -133,13 +134,15 @@ func (m manageIngredientsModel) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case manageIngPhaseMergeConfirm:
 		return m.handleMergeConfirmKey(msg)
 	case manageIngPhaseResult:
+		prevCursor := m.cursor
 		if err := m.loadIngredients(); err != nil {
 			m.resultMsg = "Error reloading: " + err.Error()
 			m.resultErr = true
 			return m, nil
 		}
-		m.cursor = 0
-		m.offset = 0
+		m.cursor, m.offset = restoredCursorByID(m.restoreIngID, prevCursor, len(m.filtered),
+			func(i int) int64 { return m.filtered[i].ID }, m.visibleRows())
+		m.restoreIngID = 0
 		m.phase = manageIngPhaseBrowse
 		return m, nil
 	}
@@ -255,6 +258,7 @@ func (m manageIngredientsModel) handleEditKey(msg tea.KeyMsg) (tea.Model, tea.Cm
 		} else {
 			m.resultMsg = fmt.Sprintf("Renamed '%s' → '%s'", ing.Name, newName)
 			m.resultErr = false
+			m.restoreIngID = ing.ID
 		}
 		m.phase = manageIngPhaseResult
 		return m, nil
@@ -303,6 +307,7 @@ func (m manageIngredientsModel) handleMergeConfirmKey(msg tea.KeyMsg) (tea.Model
 		} else {
 			m.resultMsg = fmt.Sprintf("Merged '%s' into '%s'", m.mergeSourceName, m.mergeTargetName)
 			m.resultErr = false
+			m.restoreIngID = m.mergeTargetID
 		}
 		m.phase = manageIngPhaseResult
 	}

@@ -41,8 +41,9 @@ type manageUnitsModel struct {
 	mergeTargetName string
 
 	// Result.
-	resultMsg string
-	resultErr bool
+	resultMsg       string
+	resultErr       bool
+	restoreUnitName string // name to seek to when returning to browse; "" = clamp by cursor
 
 	width  int
 	height int
@@ -91,13 +92,30 @@ func (m manageUnitsModel) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case manageUnitsPhaseMergeConfirm:
 		return m.handleMergeConfirmKey(msg)
 	case manageUnitsPhaseResult:
+		prevCursor := m.cursor
 		if err := m.loadUnits(); err != nil {
 			m.resultMsg = "Error reloading: " + err.Error()
 			m.resultErr = true
 			return m, nil
 		}
-		m.cursor = 0
+		if m.restoreUnitName != "" {
+			for i, u := range m.units {
+				if u.Name == m.restoreUnitName {
+					prevCursor = i
+					break
+				}
+			}
+		}
+		m.cursor = prevCursor
+		if m.cursor >= len(m.units) && len(m.units) > 0 {
+			m.cursor = len(m.units) - 1
+		}
+		visible := m.visibleRows()
 		m.offset = 0
+		if m.cursor >= visible {
+			m.offset = m.cursor - visible + 1
+		}
+		m.restoreUnitName = ""
 		m.phase = manageUnitsPhaseBrowse
 		return m, nil
 	}
@@ -185,6 +203,7 @@ func (m manageUnitsModel) handleEditKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		} else {
 			m.resultMsg = fmt.Sprintf("Renamed '%s' → '%s'", unit.Name, newName)
 			m.resultErr = false
+			m.restoreUnitName = newName
 		}
 		m.phase = manageUnitsPhaseResult
 		return m, nil
@@ -231,6 +250,7 @@ func (m manageUnitsModel) handleMergeConfirmKey(msg tea.KeyMsg) (tea.Model, tea.
 		} else {
 			m.resultMsg = fmt.Sprintf("Merged '%s' into '%s'", m.mergeSourceName, m.mergeTargetName)
 			m.resultErr = false
+			m.restoreUnitName = m.mergeTargetName
 		}
 		m.phase = manageUnitsPhaseResult
 	}

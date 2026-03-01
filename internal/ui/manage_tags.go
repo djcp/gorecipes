@@ -57,8 +57,9 @@ type manageTagsModel struct {
 	mergeCount      int
 
 	// Result.
-	resultMsg string
-	resultErr bool
+	resultMsg    string
+	resultErr    bool
+	restoreTagID int64 // ID to seek to when returning to browse; 0 = clamp by cursor
 
 	width  int
 	height int
@@ -109,11 +110,12 @@ func (m manageTagsModel) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case manageTagsPhaseConfirm:
 		return m.handleConfirmDeleteKey(msg)
 	case manageTagsPhaseResult:
-		// Any key → back to browse (reload).
+		prevCursor := m.tagCursor
 		tags, _ := db.ListTagsByContext(m.sqlDB, m.selectedContext)
 		m.tags = tags
-		m.tagCursor = 0
-		m.tagOffset = 0
+		m.tagCursor, m.tagOffset = restoredCursorByID(m.restoreTagID, prevCursor, len(tags),
+			func(i int) int64 { return tags[i].ID }, m.browseVisibleRows())
+		m.restoreTagID = 0
 		m.phase = manageTagsPhaseBrowse
 		return m, nil
 	}
@@ -241,6 +243,7 @@ func (m manageTagsModel) handleEditKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		} else {
 			m.resultMsg = fmt.Sprintf("Renamed '%s' → '%s'", tag.Name, newName)
 			m.resultErr = false
+			m.restoreTagID = tag.ID
 		}
 		m.phase = manageTagsPhaseResult
 		return m, nil
@@ -290,6 +293,7 @@ func (m manageTagsModel) handleMergeConfirmKey(msg tea.KeyMsg) (tea.Model, tea.C
 		} else {
 			m.resultMsg = fmt.Sprintf("Merged '%s' into '%s'", m.mergeSourceName, m.mergeTargetName)
 			m.resultErr = false
+			m.restoreTagID = m.mergeTargetID
 		}
 		m.phase = manageTagsPhaseResult
 	}

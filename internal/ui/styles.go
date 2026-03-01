@@ -144,6 +144,29 @@ func footerLine(keys []string, innerWidth int) string {
 	return left + strings.Repeat(" ", gap) + right
 }
 
+// restoredCursorByID returns (cursor, offset) after reloading a list. If seekID is
+// non-zero it scans idAt(i) for a match; otherwise it clamps prevCursor to the new
+// list length. visible is the number of rows that fit on screen.
+func restoredCursorByID(seekID int64, prevCursor, listLen int, idAt func(int) int64, visible int) (cursor, offset int) {
+	if seekID != 0 {
+		for i := 0; i < listLen; i++ {
+			if idAt(i) == seekID {
+				cursor = i
+				break
+			}
+		}
+	} else {
+		cursor = prevCursor
+		if cursor >= listLen && listLen > 0 {
+			cursor = listLen - 1
+		}
+	}
+	if cursor >= offset+visible {
+		offset = cursor - visible + 1
+	}
+	return cursor, offset
+}
+
 // renderManageBanner renders the breadcrumb banner shared by all manage sub-screens.
 // pageName is the current section, e.g. "tags", "ingredients", "serving units".
 func renderManageBanner(pageName string, width int) string {
