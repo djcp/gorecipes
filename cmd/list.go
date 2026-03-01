@@ -137,7 +137,7 @@ func runList(_ *cobra.Command, _ []string) error {
 			return err
 		}
 
-		goHome, goAdd, goEdit, deleteConfirmed, searchQuery, err := ui.RunDetailUI(recipe)
+		goHome, goAdd, goEdit, goPrint, deleteConfirmed, searchQuery, err := ui.RunDetailUI(recipe)
 		if err != nil {
 			return err
 		}
@@ -146,6 +146,13 @@ func runList(_ *cobra.Command, _ []string) error {
 				return fmt.Errorf("deleting recipe: %w", err)
 			}
 			filter.Query = ""
+			continue
+		}
+		if goPrint {
+			if err := ui.RunPrintUI(recipe); err != nil {
+				return err
+			}
+			pendingDetailID = recipe.ID
 			continue
 		}
 		if goEdit {

@@ -54,6 +54,7 @@ type DetailModel struct {
 	goHome          bool
 	goAdd           bool
 	goEdit          bool
+	goPrint         bool
 	returnQuery     string
 	confirmingDelete bool
 	deleteConfirmed  bool
@@ -77,6 +78,9 @@ func (m DetailModel) GoAdd() bool { return m.goAdd }
 
 // GoEdit returns true when the user pressed "e" to edit the recipe.
 func (m DetailModel) GoEdit() bool { return m.goEdit }
+
+// GoPrint returns true when the user pressed "p" to open print preview.
+func (m DetailModel) GoPrint() bool { return m.goPrint }
 
 // DeleteConfirmed returns true when the user confirmed deletion of the recipe.
 func (m DetailModel) DeleteConfirmed() bool { return m.deleteConfirmed }
@@ -201,6 +205,10 @@ func (m DetailModel) handleNavKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	case "e":
 		m.goEdit = true
+		return m, tea.Quit
+
+	case "p":
+		m.goPrint = true
 		return m, tea.Quit
 
 	case "d":
@@ -532,6 +540,7 @@ func renderDetailFooter(focus detailFocus, width int) string {
 		"🔍 / search",
 		homeStyle.Render("🏠 h home"),
 		MutedStyle.Render("✏️ e edit"),
+		MutedStyle.Render("🖨  p print"),
 		MutedStyle.Render("➕ a add"),
 		MutedStyle.Render("🗑 d delete"),
 		"🚪 q quit",
@@ -554,14 +563,14 @@ func min(a, b int) int {
 }
 
 // RunDetailUI runs the interactive recipe detail TUI.
-// Returns goHome, goAdd, goEdit, deleteConfirmed booleans, the search query, and any error.
-func RunDetailUI(recipe *models.Recipe) (goHome bool, goAdd bool, goEdit bool, deleteConfirmed bool, searchQuery string, err error) {
+// Returns goHome, goAdd, goEdit, goPrint, deleteConfirmed booleans, the search query, and any error.
+func RunDetailUI(recipe *models.Recipe) (goHome bool, goAdd bool, goEdit bool, goPrint bool, deleteConfirmed bool, searchQuery string, err error) {
 	m := NewDetailModel(recipe)
 	p := tea.NewProgram(m, tea.WithAltScreen())
 	final, runErr := p.Run()
 	if runErr != nil {
-		return false, false, false, false, "", runErr
+		return false, false, false, false, false, "", runErr
 	}
 	fm := final.(DetailModel)
-	return fm.GoHome(), fm.GoAdd(), fm.GoEdit(), fm.DeleteConfirmed(), fm.ReturnQuery(), nil
+	return fm.GoHome(), fm.GoAdd(), fm.GoEdit(), fm.GoPrint(), fm.DeleteConfirmed(), fm.ReturnQuery(), nil
 }

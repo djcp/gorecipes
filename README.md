@@ -9,6 +9,7 @@ A CLI recipe manager that captures recipes from URLs or pasted text and uses Cla
 - **Add manually** — fill in a full-screen form with autocomplete for ingredients, units, and tags
 - **AI extraction** — Claude parses free-form text into a structured recipe: named ingredients with quantity, unit, descriptor, and section; numbered directions; prep/cook time; servings; and four classification tag contexts (courses, cooking methods, cultural influences, dietary restrictions)
 - **Edit recipes** — open a pre-populated form from the list or detail view with `e`; supports the same autocomplete as manual entry
+- **Print preview & export** — `p` in the detail view opens a full-screen preview with options to save as PDF, RTF, Markdown, or plain text to `~/Downloads/`, or send directly to the system printer via CUPS (`lp`/`lpr`); duplicate filenames are deduplicated automatically with a `-2`, `-3`, … suffix
 - **Interactive browser** — full-screen recipe list with live `/` search and keyboard navigation
 - **Styled output** — ingredient tables, markdown-rendered directions, tag pills, and timing summaries in the terminal
 - **Quiet/scripted mode** — `add --quiet <url>` runs the pipeline silently and exits non-zero with an error on stderr on failure
@@ -86,10 +87,34 @@ Falls back to a plain table when stdout is not a TTY or `--query` is set.
 | `↑` / `↓` or `j` / `k` | Scroll |
 | `/` | Search (carries the query back to the list on `h`) |
 | `e` | Edit this recipe |
+| `p` | Open print preview / export |
 | `a` | Add a new recipe |
 | `d` | Delete (with confirmation) |
 | `h` | Go back to the list |
 | `q` / `esc` | Quit |
+
+### Print preview
+
+Opened with `p` from the detail view. Shows a plain-text rendering of the recipe in a scrollable full-screen view.
+
+| Key | Action |
+|-----|--------|
+| `↑` / `↓` or `j` / `k` | Scroll |
+| `s` | Open the export format chooser |
+| `p` | Send to system printer immediately |
+| `esc` / `q` | Return to the detail view |
+
+**Export formats** (chosen via `s`):
+
+| Format | Saved to |
+|--------|----------|
+| PDF (`.pdf`) | `~/Downloads/<recipe-slug>.pdf` |
+| Rich Text (`.rtf`) | `~/Downloads/<recipe-slug>.rtf` |
+| Markdown (`.md`) | `~/Downloads/<recipe-slug>.md` |
+| Plain Text (`.txt`) | `~/Downloads/<recipe-slug>.txt` |
+| Print to printer | Sent via `lp` / `lpr` (CUPS) |
+
+If the target filename already exists, a numeric suffix is appended before the extension: `chocolate-chip-cookies-2.pdf`, `chocolate-chip-cookies-3.pdf`, and so on. The full path of the saved file is shown in a confirmation overlay after each export.
 
 ### Edit form
 
@@ -237,6 +262,9 @@ Thin extension to `database/sql` that adds struct scanning (`db.Get`, `db.Select
 
 ### [Anthropic Go SDK](https://github.com/anthropics/anthropic-sdk-go)
 Official SDK for the Anthropic Messages API. The `AIClient` interface in `internal/services/ai_extractor.go` wraps the SDK's `Complete` call, which is what allows tests to inject a `mockAIClient` without making real API calls.
+
+### [go-pdf/fpdf](https://github.com/go-pdf/fpdf)
+Pure-Go PDF generation library (a maintained fork of gofpdf). Used in `internal/export/pdf.go` to render recipe PDFs using the built-in Helvetica core font — no font files to embed, no CGO requirement. Text is translated from UTF-8 to cp1252 via `UnicodeTranslatorFromDescriptor` before being passed to the library, which is required for correct rendering of characters such as `°` and `•` with core fonts.
 
 ### [golang.org/x/net/html](https://pkg.go.dev/golang.org/x/net/html)
 The standard Go HTML parser from the `x/net` extended library. Used in `TextExtractor` to walk the DOM, strip noise nodes, and extract recipe content without pulling in a third-party HTML library.

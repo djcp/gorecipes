@@ -35,3 +35,86 @@ bar := lipgloss.NewStyle().
     Render(content)
 sb.WriteString(bar)
 ```
+
+## Export package (`internal/export/`)
+
+### Adding a new export format
+
+The export table in `recipe_print.go` drives the format-select menu:
+
+```go
+var exportFormats = []struct{ label, ext string }{
+    {"PDF (.pdf)", "pdf"},
+    ...
+}
+```
+
+To add a format:
+1. Add a new `To<Format>(r *models.Recipe) (string or []byte, error)` function in `internal/export/<format>.go`.
+2. Append an entry to `exportFormats` in `recipe_print.go` — `ext` is what `execute()` switches on.
+3. Add a `case "<ext>":` branch in `execute()` that calls the new function and assigns `data`.
+
+The printer entry uses `ext == ""` as its sentinel; all non-empty `ext` values write a file via `export.UniqueFilePath`.
+
+### PDF encoding — always translate strings through `tr`
+
+`github.com/go-pdf/fpdf` uses **cp1252** (Windows-1252) for its built-in core fonts
+(Helvetica, Times, Courier). Go source strings are UTF-8. Any character outside
+plain ASCII that is not translated will be silently misread byte-by-byte, producing
+mojibake (e.g. `•` → `â€¢`, `°` → `Â°`).
+
+The fix is to obtain a translator immediately after creating the `Fpdf` instance and
+pass **every** string through it before handing it to fpdf:
+
+```go
+f := fpdf.New("P", "mm", "Letter", "")
+tr := f.UnicodeTranslatorFromDescriptor("") // cp1252 (the default)
+// ...
+f.MultiCell(pw, 6, tr(someString), "", "L", false)
+```
+
+`UnicodeTranslatorFromDescriptor("")` maps cp1252-representable characters correctly
+and replaces unmappable ones with a fallback `?`. If you ever switch to a TrueType
+font (which supports full Unicode natively) you can drop the `tr` calls — but with
+core fonts it is always required.
+
+### `UniqueFilePath` — deduplication of saved files
+
+`export.UniqueFilePath(dir, base, ext string) string` probes the filesystem and
+returns the first non-conflicting path: `base.ext`, then `base-2.ext`, `base-3.ext`,
+etc. It is the only place that constructs output paths for file saves. Do not
+construct paths with `filepath.Join(dir, base+"."+ext)` directly — you'll lose
+deduplication.
+
+## Print preview TUI (`internal/ui/recipe_print.go`)
+
+### Phase model
+
+`PrintModel` uses an explicit `printPhase` enum (`printPhasePreview` →
+`printPhaseFormatSelect` → `printPhaseResult`). Each phase has its own key handler
+(`handlePreviewKey`, `handleFormatKey`) and its own `render*` method. Keep this
+separation: resist the urge to fold phase logic into a single large `Update` or `View`.
+
+### `execute()` is a pure value transform
+
+`execute()` takes a `PrintModel` by value and returns a new `PrintModel` by value —
+no pointer receivers, no side effects on `m` before the call. The only I/O it does
+is writing the file or forking `lp`/`lpr`. Keep it this way so it stays easy to test
+in isolation.
+
+### `buildPreviewLines` couples `ToText` and the TUI
+
+`buildPreviewLines` calls `export.ToText` and applies lipgloss highlights to the
+result. The highlights rely on knowing that line 0 is the recipe name and that
+section headers are the exact strings `"INGREDIENTS"` and `"DIRECTIONS"`. If `ToText`
+ever changes those strings or their line positions, `buildPreviewLines` must be
+updated in step.
+
+### Vertical fill in `renderFormatSelect`
+
+The format-select overlay is rendered with `\n\n` before the box and then the
+remaining vertical space is computed by counting `\n` in `sb` and subtracting from
+`m.height`. This is a fragile heuristic — it works because the banner always
+contributes the same number of lines. If the banner height changes (e.g. wrapping on
+very narrow terminals), the fill calculation will be off. A more robust approach
+would be to track consumed lines explicitly rather than counting newlines post-hoc.
