@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/djcp/gorecipes/internal/models"
+	"github.com/djcp/gorecipes/internal/version"
 )
 
 // ToMarkdown renders a recipe as a Markdown document.
@@ -70,6 +71,9 @@ func ToMarkdown(r *models.Recipe) string {
 	if r.SourceURL != "" {
 		sb.WriteString("\n---\n\nSource: " + r.SourceURL + "\n")
 	}
+
+	// Attribution footer — right-aligned, small text
+	sb.WriteString("\n<p align=\"right\"><sub>exported from gorecipes " + version.Version + "</sub></p>\n")
 
 	return sb.String()
 }

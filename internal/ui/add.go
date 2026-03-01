@@ -540,13 +540,12 @@ func renderAddFooter(pasteMode bool, phase addPhase, width int) string {
 			keys = []string{"enter submit", "esc back"}
 		}
 	}
-	line := "  " + strings.Join(keys, "   ")
 	return lipgloss.NewStyle().
 		Foreground(ColorMuted).
 		Border(lipgloss.NormalBorder(), true, false, false, false).
 		BorderForeground(ColorBorder).
 		Width(width - 2).
-		Render(line)
+		Render(footerLine(keys, width-2))
 }
 
 // RunAddUI runs the full-screen add recipe TUI.

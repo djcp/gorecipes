@@ -545,14 +545,13 @@ func renderDetailFooter(focus detailFocus, width int) string {
 		MutedStyle.Render("🗑 d delete"),
 		"🚪 q quit",
 	}
-	line := "  " + strings.Join(keys, "   ")
 
 	return lipgloss.NewStyle().
 		Foreground(ColorMuted).
 		Border(lipgloss.NormalBorder(), true, false, false, false).
 		BorderForeground(borderColor).
 		Width(width - 2).
-		Render(line)
+		Render(footerLine(keys, width-2))
 }
 
 func min(a, b int) int {

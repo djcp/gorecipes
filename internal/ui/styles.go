@@ -1,12 +1,18 @@
 package ui
 
-import "github.com/charmbracelet/lipgloss"
+import (
+	"strings"
+
+	"github.com/charmbracelet/lipgloss"
+	"github.com/djcp/gorecipes/internal/version"
+)
 
 // Palette — warm, food-inspired earth tones.
 var (
 	ColorPrimary   = lipgloss.Color("#C96442") // terracotta
 	ColorSecondary = lipgloss.Color("#7C9E6E") // sage green
 	ColorMuted     = lipgloss.Color("#8E8178") // warm gray
+	ColorFaint     = lipgloss.Color("#B8B0A8") // very light warm gray — for version tags
 	ColorBorder    = lipgloss.Color("#DDD5CC") // light warm gray
 	ColorBg        = lipgloss.Color("#FDF8F3") // off-white cream
 	ColorSuccess   = lipgloss.Color("#5A8A5A") // muted green
@@ -123,4 +129,17 @@ func statusLabel(status string) string {
 	default:
 		return status
 	}
+}
+
+// footerLine builds a footer content string with keybinding hints on the left
+// and the application version tag right-aligned within the given inner width.
+// innerWidth is the content width of the rendered footer block (Width() value).
+func footerLine(keys []string, innerWidth int) string {
+	left := "  " + strings.Join(keys, "   ")
+	right := lipgloss.NewStyle().Foreground(ColorFaint).Render("gorecipes " + version.Version)
+	gap := innerWidth - lipgloss.Width(left) - lipgloss.Width(right)
+	if gap < 1 {
+		gap = 1
+	}
+	return left + strings.Repeat(" ", gap) + right
 }

@@ -1069,13 +1069,12 @@ func renderEditFooter(width int) string {
 		"💾 ctrl+s save",
 		"✖ esc cancel",
 	}
-	line := "  " + strings.Join(keys, "   ")
 	return lipgloss.NewStyle().
 		Foreground(ColorMuted).
 		Border(lipgloss.NormalBorder(), true, false, false, false).
 		BorderForeground(ColorBorder).
 		Width(width - 2).
-		Render(line)
+		Render(footerLine(keys, width-2))
 }
 
 // RunEditUI runs the edit form. recipe=nil → blank new-recipe form.

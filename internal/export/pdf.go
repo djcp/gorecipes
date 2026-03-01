@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/djcp/gorecipes/internal/models"
+	"github.com/djcp/gorecipes/internal/version"
 	"github.com/go-pdf/fpdf"
 )
 
@@ -98,6 +99,16 @@ func ToPDF(r *models.Recipe) ([]byte, error) {
 		f.SetTextColor(142, 129, 120)
 		f.MultiCell(pw, 5, tr("Source: "+r.SourceURL), "", "L", false)
 	}
+
+	// Attribution footer — right-aligned, 50% gray
+	f.Ln(8)
+	f.SetDrawColor(200, 200, 200)
+	f.SetLineWidth(0.2)
+	f.Line(f.GetX(), f.GetY(), f.GetX()+pw, f.GetY())
+	f.Ln(3)
+	f.SetFont("Helvetica", "I", 8)
+	f.SetTextColor(128, 128, 128)
+	f.MultiCell(pw, 5, tr("exported from gorecipes "+version.Version), "", "R", false)
 
 	var buf bytes.Buffer
 	if err := f.Output(&buf); err != nil {

@@ -382,13 +382,12 @@ func renderPrintPreviewFooter(width int) string {
 		MutedStyle.Render("🖨  p print"),
 		MutedStyle.Render("✖ esc back"),
 	}
-	line := "  " + strings.Join(keys, "   ")
 	return lipgloss.NewStyle().
 		Foreground(ColorMuted).
 		Border(lipgloss.NormalBorder(), true, false, false, false).
 		BorderForeground(ColorBorder).
 		Width(width - 2).
-		Render(line)
+		Render(footerLine(keys, width-2))
 }
 
 func renderFormatSelectFooter(width int) string {
@@ -397,13 +396,12 @@ func renderFormatSelectFooter(width int) string {
 		MutedStyle.Render("enter select"),
 		MutedStyle.Render("✖ esc back"),
 	}
-	line := "  " + strings.Join(keys, "   ")
 	return lipgloss.NewStyle().
 		Foreground(ColorMuted).
 		Border(lipgloss.NormalBorder(), true, false, false, false).
 		BorderForeground(ColorBorder).
 		Width(width - 2).
-		Render(line)
+		Render(footerLine(keys, width-2))
 }
 
 // RunPrintUI runs the interactive print preview TUI for the given recipe.

@@ -1,9 +1,11 @@
 package export
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/djcp/gorecipes/internal/models"
+	"github.com/djcp/gorecipes/internal/version"
 )
 
 // ToText renders a recipe as plain text.
@@ -68,6 +70,10 @@ func ToText(r *models.Recipe) string {
 	if r.SourceURL != "" {
 		sb.WriteString("\nSource: " + r.SourceURL + "\n")
 	}
+
+	// Attribution footer — right-aligned at 80 columns
+	footer := "exported from gorecipes " + version.Version
+	sb.WriteString(fmt.Sprintf("\n%80s\n", footer))
 
 	return sb.String()
 }

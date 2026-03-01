@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/djcp/gorecipes/internal/models"
+	"github.com/djcp/gorecipes/internal/version"
 )
 
 // ToRTF renders a recipe as an RTF 1.x document (cp1252 encoding).
@@ -15,7 +16,8 @@ func ToRTF(r *models.Recipe) string {
 	// use cp1252 rather than the system default when interpreting \'XX escapes.
 	sb.WriteString("{\\rtf1\\ansi\\ansicpg1252\\deff0\n")
 	sb.WriteString("{\\fonttbl{\\f0\\fswiss Helvetica;}}\n")
-	sb.WriteString("{\\colortbl;\\red201\\green100\\blue66;\\red124\\green158\\blue110;\\red142\\green129\\blue120;}\n")
+	// cf1=terracotta  cf2=sage green  cf3=warm gray  cf4=50% gray (attribution)
+	sb.WriteString("{\\colortbl;\\red201\\green100\\blue66;\\red124\\green158\\blue110;\\red142\\green129\\blue120;\\red128\\green128\\blue128;}\n")
 	sb.WriteString("\\f0\\fs22\n")
 
 	// Title
@@ -82,6 +84,10 @@ func ToRTF(r *models.Recipe) string {
 	if r.SourceURL != "" {
 		sb.WriteString(fmt.Sprintf("{\\fs18\\cf3 Source: %s\\cf0\\par}\n", rtfEnc(r.SourceURL)))
 	}
+
+	// Attribution footer — right-aligned, 50% gray
+	sb.WriteString(fmt.Sprintf("{\\pard\\qr\\fs16\\cf4 exported from gorecipes %s\\cf0\\par}\n",
+		rtfEnc(version.Version)))
 
 	sb.WriteString("}\n")
 	return sb.String()

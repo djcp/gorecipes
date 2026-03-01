@@ -351,13 +351,12 @@ func renderFooter(width int) string {
 		"🏠 h home",
 		"🚪 q quit",
 	}
-	line := "  " + strings.Join(keys, "   ")
 	return lipgloss.NewStyle().
 		Foreground(ColorMuted).
 		Border(lipgloss.NormalBorder(), true, false, false, false).
 		BorderForeground(ColorBorder).
 		Width(width - 2).
-		Render(line)
+		Render(footerLine(keys, width-2))
 }
 
 func (m ListModel) viewEmpty() string {
