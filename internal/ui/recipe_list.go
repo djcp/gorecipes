@@ -317,7 +317,7 @@ func renderSearchBar(query string, typing bool, width int) string {
 	} else if query != "" {
 		content = lipgloss.NewStyle().Foreground(ColorPrimary).Render(query)
 	} else {
-		content = MutedStyle.Render("search recipes...")
+		content = MutedStyle.Render("search by title or ingredient...")
 	}
 
 	bar := lipgloss.NewStyle().
