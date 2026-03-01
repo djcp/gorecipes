@@ -12,9 +12,10 @@ A CLI recipe manager that captures recipes from URLs or pasted text and uses Cla
 - **Print preview & export** — `p` in the detail view opens a full-screen preview with options to save as PDF, RTF, Markdown, or plain text to `~/Downloads/`, or send directly to the system printer via CUPS (`lp`/`lpr`); duplicate filenames are deduplicated automatically with a `-2`, `-3`, … suffix
 - **Interactive browser** — full-screen recipe list with live `/` search and keyboard navigation
 - **Styled output** — ingredient tables, markdown-rendered directions, tag pills, and timing summaries in the terminal
+- **Data management** — `m` from the list or detail view opens a manage screen for cleaning up tags (rename, merge, delete by context), ingredients (rename, merge), and serving units (rename, merge); also browses AI run history with individual delete and bulk prune of runs older than 30 days
 - **Quiet/scripted mode** — `add --quiet <url>` runs the pipeline silently and exits non-zero with an error on stderr on failure
 - **Onboarding** — prompts for an Anthropic API key on first run and stores it at `~/.config/gorecipes/config.json`
-- **Audit trail** — every AI call is recorded with its prompt, raw response, duration, and success/failure status
+- **Audit trail** — every AI call is recorded with its prompt, raw response, duration, and success/failure status; browsable and manageable via the manage screen
 - **No external dependencies at runtime** — single static binary; SQLite is compiled in with no CGO requirement
 
 ## Commands
@@ -73,6 +74,7 @@ Opens a full-screen browser:
 | `e` | Edit the selected recipe |
 | `d` | Delete (with confirmation) |
 | `a` | Add a new recipe |
+| `m` | Open manage |
 | `h` | Clear filter and go home |
 | `q` / `esc` | Quit |
 
@@ -90,6 +92,7 @@ Falls back to a plain table when stdout is not a TTY or `--query` is set.
 | `p` | Open print preview / export |
 | `a` | Add a new recipe |
 | `d` | Delete (with confirmation) |
+| `m` | Open manage |
 | `h` | Go back to the list |
 | `q` / `esc` | Quit |
 
@@ -115,6 +118,26 @@ Opened with `p` from the detail view. Shows a plain-text rendering of the recipe
 | Print to printer | Sent via `lp` / `lpr` (CUPS) |
 
 If the target filename already exists, a numeric suffix is appended before the extension: `chocolate-chip-cookies-2.pdf`, `chocolate-chip-cookies-3.pdf`, and so on. The full path of the saved file is shown in a confirmation overlay after each export.
+
+### Manage
+
+Opened with `m` from the list or detail view. A landing screen with five sections navigated by `↑`/`↓`/`j`/`k`; `enter` opens the selected section, `esc` returns to where you came from.
+
+| Section | What you can do |
+|---------|-----------------|
+| Configure | Update API key, AI model, and export credits |
+| Tags | Browse tags by context; rename, merge, or delete |
+| Ingredients | Search and browse ingredients with usage counts; rename or merge |
+| Serving Units | Browse serving units with usage counts; rename or merge |
+| AI Classifier Runs | View extraction history; delete individual runs or bulk-prune runs older than 30 days |
+
+**Tags** — pick a context (courses, cooking methods, cultural influences, dietary restrictions), then browse the tag list. `e` to rename in-place, `m` to merge into another tag (recipe associations are repointed, source tag is deleted), `d` to delete with confirmation.
+
+**Ingredients** — `/` focuses the search bar for a client-side filter; `e` renames, `m` merges (all `recipe_ingredients` rows are repointed to the target, source ingredient row is deleted).
+
+**Serving Units** — same rename/merge flow; units are inline strings in `recipe_ingredients.unit`, so merge is a bulk `UPDATE` with no orphan row cleanup needed.
+
+**AI Classifier Runs** — scrollable list showing date, service, model, success/failure, duration, and recipe name. `enter` opens a scrollable detail view with the full system prompt, user prompt, and raw AI response (with humanized timestamps and timezone). `d` deletes an individual run with a brief inline confirmation overlay; the list shows a notice on return. `p` prompts to prune all runs older than 30 days and displays the count deleted.
 
 ### Edit form
 
@@ -144,7 +167,9 @@ Accessible via `e` from the list or detail view, or via "Enter manually" in the 
 
 ### config
 
-Displays the current API key (masked), model, database path, and config file location. Lets you switch between Claude models (Haiku, Sonnet, Opus).
+Displays and edits the current configuration: API key (masked), AI model, and export credits line. The model cycles with `◄`/`►`; `ctrl+s` saves, `esc` cancels. Database path and config file location are shown below the editable fields.
+
+Also accessible from the interactive browser via `m` → **Configure**.
 
 ## Building
 

@@ -117,6 +117,28 @@ etc. It is the only place that constructs output paths for file saves. Do not
 construct paths with `filepath.Join(dir, base+"."+ext)` directly — you'll lose
 deduplication.
 
+## Manage screens (`internal/ui/manage*.go`)
+
+### Dispatch loop pattern
+
+The manage system uses a loop in `cmd/helpers.go` (`runManageUI()`): show the landing page (`RunManageUI`) → dispatch to the selected sub-screen's `Run*UI` function → loop back to the landing page. Each sub-screen is its own Bubbletea program that returns when done. `ManageSectionBack` (the zero/iota value) exits the loop.
+
+### Phase-driven sub-screen pattern
+
+Each manage sub-screen (`manage_tags.go`, `manage_ingredients.go`, `manage_units.go`, `manage_ai_runs.go`) uses an explicit `phase` enum. `Update` routes key messages to phase-specific handlers; each phase has its own `view*` and `renderFooter*` methods. Keep this pattern consistent — resist merging phase logic into one large `Update` or `View`.
+
+### Inline list notice (no result page)
+
+After a destructive operation that returns the user to the list view (e.g. delete in AI runs), set `listNotice string` and `listNoticeErr bool` on the model instead of transitioning to a result phase. `viewList()` renders the notice above the footer using `SuccessStyle`/`ErrorStyle`. This avoids an extra keypress to dismiss a result page.
+
+### `truncate()` — must guard negative max
+
+`truncate(s string, max int)` in `recipe_list.go` slices runes by index. Always guard `max <= 0` at the top (`return ""`). Call sites that compute `nameWidth := m.width - constant` must clamp to `if nameWidth < 1 { nameWidth = 1 }` before passing to `truncate` to prevent panics on narrow terminals.
+
+### DB layer (`internal/db/manage_queries.go`)
+
+Tag and ingredient merge operations use transactions: repoint foreign-key joins (`recipe_tags` or `recipe_ingredients`) then delete the source row. Unit merge is a plain bulk `UPDATE recipe_ingredients SET unit=target WHERE unit=source` — units are inline strings, not a separate table.
+
 ## Print preview TUI (`internal/ui/recipe_print.go`)
 
 ### Phase model
