@@ -2,6 +2,7 @@ package export
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/djcp/gorecipes/internal/models"
@@ -90,17 +91,5 @@ func formatServings(n int, units string) string {
 	if n == 1 {
 		return "Makes 1 " + units
 	}
-	return "Makes " + itoa(n) + " " + units
-}
-
-func itoa(n int) string {
-	if n == 0 {
-		return "0"
-	}
-	result := ""
-	for n > 0 {
-		result = string(rune('0'+n%10)) + result
-		n /= 10
-	}
-	return result
+	return "Makes " + strconv.Itoa(n) + " " + units
 }
