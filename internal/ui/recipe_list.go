@@ -234,12 +234,15 @@ func (m ListModel) View() string {
 		sb.WriteString("\n\n")
 	}
 
+	visible := m.visibleRows()
 	if len(m.recipes) == 0 {
 		// A filter/search was active but returned nothing.
 		sb.WriteString(MutedStyle.Render(fmt.Sprintf(`  No recipes match "%s".`, m.query)))
 		sb.WriteString("\n")
+		for i := 1; i < visible; i++ {
+			sb.WriteString("\n")
+		}
 	} else {
-		visible := m.visibleRows()
 		end := m.offset + visible
 		if end > len(m.recipes) {
 			end = len(m.recipes)
@@ -252,7 +255,12 @@ func (m ListModel) View() string {
 			sb.WriteString("\n")
 		}
 
-		// Scroll hint.
+		// Fill remaining viewport rows so the footer stays pinned.
+		for i := end - m.offset; i < visible; i++ {
+			sb.WriteString("\n")
+		}
+
+		// Scroll hint — only shown when there are more recipes than fit.
 		if len(m.recipes) > visible {
 			total := len(m.recipes)
 			shown := fmt.Sprintf("  %d–%d of %d", m.offset+1, end, total)
