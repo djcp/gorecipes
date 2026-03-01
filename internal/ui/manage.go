@@ -20,7 +20,7 @@ const (
 )
 
 var manageOptions = []struct{ label, desc string }{
-	{"Configure", "API key, AI model, and export credits"},
+	{"Configure", "API key, AI model, and author credits on exported recipes"},
 	{"Tags", "Edit, merge, and delete tags by context"},
 	{"Ingredients", "Edit and merge ingredient names"},
 	{"Serving Units", "Edit and merge serving units"},

@@ -125,7 +125,7 @@ Opened with `m` from the list or detail view. A landing screen with five section
 
 | Section | What you can do |
 |---------|-----------------|
-| Configure | Update API key, AI model, and export credits |
+| Configure | Update API key, AI model, and credits on exported recipes |
 | Tags | Browse tags by context; rename, merge, or delete |
 | Ingredients | Search and browse ingredients with usage counts; rename or merge |
 | Serving Units | Browse serving units with usage counts; rename or merge |
