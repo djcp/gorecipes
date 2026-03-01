@@ -245,7 +245,7 @@ func (m AddModel) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if m.phase == addPhaseMode {
 		const modeCount = 3
 		switch msg.String() {
-		case "ctrl+c":
+		case "ctrl+c", "q":
 			return m, tea.Quit
 		case "esc":
 			m.goHome = true

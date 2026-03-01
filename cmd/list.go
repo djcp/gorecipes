@@ -128,11 +128,7 @@ func runList(_ *cobra.Command, _ []string) error {
 				continue
 			}
 			if goAdd {
-				if err := runAdd(nil, nil); err != nil {
-					return err
-				}
-				filter.Query = ""
-				continue
+				return runAdd(nil, nil)
 			}
 			if selectedID == 0 {
 				break
@@ -163,8 +159,12 @@ func runList(_ *cobra.Command, _ []string) error {
 			continue
 		}
 		if goPrint {
-			if err := ui.RunPrintUI(recipe, export.Options{Credits: cfg.Credits}); err != nil {
+			quit, err := ui.RunPrintUI(recipe, export.Options{Credits: cfg.Credits})
+			if err != nil {
 				return err
+			}
+			if quit {
+				return nil
 			}
 			pendingDetailID = recipe.ID
 			continue
@@ -185,11 +185,7 @@ func runList(_ *cobra.Command, _ []string) error {
 			continue
 		}
 		if goAdd {
-			if err := runAdd(nil, nil); err != nil {
-				return err
-			}
-			filter.Query = ""
-			continue
+			return runAdd(nil, nil)
 		}
 		if !goHome {
 			break

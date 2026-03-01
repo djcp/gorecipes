@@ -44,7 +44,11 @@ type PrintModel struct {
 	resultMsg string
 	isError   bool
 	goBack    bool
+	quitting  bool // true when user pressed q/ctrl+c (vs esc to go back)
 }
+
+// Quitting returns true when the user explicitly pressed q or ctrl+c to exit.
+func (m PrintModel) Quitting() bool { return m.quitting }
 
 func newPrintModel(recipe *models.Recipe, opts export.Options) PrintModel {
 	m := PrintModel{recipe: recipe, opts: opts, width: 80, height: 24}
@@ -95,7 +99,10 @@ func (m PrintModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m PrintModel) handlePreviewKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
-	case "ctrl+c", "esc", "q":
+	case "ctrl+c", "q":
+		m.quitting = true
+		return m, tea.Quit
+	case "esc":
 		m.goBack = true
 		return m, tea.Quit
 	case "up", "k":
@@ -128,8 +135,8 @@ func (m PrintModel) handlePreviewKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 func (m PrintModel) handleFormatKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
-	case "ctrl+c":
-		m.goBack = true
+	case "ctrl+c", "q":
+		m.quitting = true
 		return m, tea.Quit
 	case "esc":
 		m.phase = printPhasePreview
@@ -407,9 +414,13 @@ func renderFormatSelectFooter(width int) string {
 
 // RunPrintUI runs the interactive print preview TUI for the given recipe.
 // opts controls export behaviour, notably Credits for file footer attribution.
-func RunPrintUI(recipe *models.Recipe, opts export.Options) error {
+func RunPrintUI(recipe *models.Recipe, opts export.Options) (bool, error) {
 	m := newPrintModel(recipe, opts)
 	p := tea.NewProgram(m, tea.WithAltScreen())
-	_, err := p.Run()
-	return err
+	final, err := p.Run()
+	if err != nil {
+		return false, err
+	}
+	pm, _ := final.(PrintModel)
+	return pm.Quitting(), nil
 }

@@ -177,8 +177,12 @@ func runDetailLoop(recipe *models.Recipe) error {
 			continue
 		}
 		if goPrint {
-			if err := ui.RunPrintUI(recipe, export.Options{Credits: cfg.Credits}); err != nil {
+			quit, err := ui.RunPrintUI(recipe, export.Options{Credits: cfg.Credits})
+			if err != nil {
 				return err
+			}
+			if quit {
+				return nil
 			}
 			continue
 		}
