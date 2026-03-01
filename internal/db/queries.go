@@ -53,11 +53,13 @@ func UpdateRecipeFields(db *sqlx.DB, r *models.Recipe) error {
 		SET name = ?, description = ?, directions = ?,
 		    preparation_time = ?, cooking_time = ?,
 		    servings = ?, serving_units = ?,
+		    source_url = ?,
 		    status = ?, updated_at = ?
 		WHERE id = ?`,
 		r.Name, r.Description, r.Directions,
 		r.PreparationTime, r.CookingTime,
 		r.Servings, r.ServingUnits,
+		r.SourceURL,
 		r.Status, time.Now(), r.ID,
 	)
 	return err
@@ -260,6 +262,73 @@ func GetRecipeTags(db *sqlx.DB, recipeID int64) ([]models.Tag, error) {
 		recipeID,
 	)
 	return tags, err
+}
+
+// AllIngredientNames returns every ingredient name in alphabetical order.
+func AllIngredientNames(db *sqlx.DB) ([]string, error) {
+	var names []string
+	err := db.Select(&names, `SELECT name FROM ingredients ORDER BY name`)
+	return names, err
+}
+
+// AllUnits returns every distinct unit used in recipe ingredients, alphabetically.
+func AllUnits(db *sqlx.DB) ([]string, error) {
+	var units []string
+	err := db.Select(&units,
+		`SELECT DISTINCT unit FROM recipe_ingredients WHERE unit != '' ORDER BY unit`)
+	return units, err
+}
+
+// SaveRecipe creates (r.ID==0) or updates (r.ID>0) a recipe with its tags and
+// ingredients. r.Ingredients[*].IngredientName must be set; IDs are ignored.
+func SaveRecipe(db *sqlx.DB, r *models.Recipe, tagNames map[string][]string) error {
+	if r.ID == 0 {
+		id, err := CreateRecipe(db, r)
+		if err != nil {
+			return err
+		}
+		r.ID = id
+	} else {
+		if err := UpdateRecipeFields(db, r); err != nil {
+			return err
+		}
+	}
+	if err := DeleteRecipeTags(db, r.ID); err != nil {
+		return err
+	}
+	for ctx, names := range tagNames {
+		for _, name := range names {
+			if name == "" {
+				continue
+			}
+			tagID, err := FindOrCreateTag(db, name, ctx)
+			if err != nil {
+				return err
+			}
+			if err := AttachTag(db, r.ID, tagID); err != nil {
+				return err
+			}
+		}
+	}
+	if err := DeleteRecipeIngredients(db, r.ID); err != nil {
+		return err
+	}
+	for pos, ing := range r.Ingredients {
+		if ing.IngredientName == "" {
+			continue
+		}
+		ingID, err := FindOrCreateIngredient(db, ing.IngredientName)
+		if err != nil {
+			return err
+		}
+		ing.RecipeID = r.ID
+		ing.IngredientID = ingID
+		ing.Position = pos
+		if err := InsertRecipeIngredient(db, &ing); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // AllTagsByContext returns every tag value for a given context (for filter menus).

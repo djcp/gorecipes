@@ -351,6 +351,133 @@ func TestListRecipes_TagFilter(t *testing.T) {
 	}
 }
 
+func TestAllIngredientNames(t *testing.T) {
+	d := openTestDB(t)
+
+	_, _ = db.FindOrCreateIngredient(d, "zucchini")
+	_, _ = db.FindOrCreateIngredient(d, "apple")
+	_, _ = db.FindOrCreateIngredient(d, "basil")
+
+	names, err := db.AllIngredientNames(d)
+	if err != nil {
+		t.Fatalf("AllIngredientNames() error: %v", err)
+	}
+	if len(names) != 3 {
+		t.Errorf("expected 3 names, got %d", len(names))
+	}
+	// Should be alphabetical.
+	if names[0] != "apple" || names[1] != "basil" || names[2] != "zucchini" {
+		t.Errorf("unexpected order: %v", names)
+	}
+}
+
+func TestAllUnits(t *testing.T) {
+	d := openTestDB(t)
+
+	recipeID, _ := db.CreateRecipe(d, &models.Recipe{Name: "Test", Status: models.StatusDraft})
+	ingID1, _ := db.FindOrCreateIngredient(d, "flour")
+	ingID2, _ := db.FindOrCreateIngredient(d, "milk")
+	ingID3, _ := db.FindOrCreateIngredient(d, "salt")
+
+	_ = db.InsertRecipeIngredient(d, &models.RecipeIngredient{RecipeID: recipeID, IngredientID: ingID1, Unit: "cup"})
+	_ = db.InsertRecipeIngredient(d, &models.RecipeIngredient{RecipeID: recipeID, IngredientID: ingID2, Unit: "tbsp"})
+	_ = db.InsertRecipeIngredient(d, &models.RecipeIngredient{RecipeID: recipeID, IngredientID: ingID3, Unit: ""}) // empty unit excluded
+
+	units, err := db.AllUnits(d)
+	if err != nil {
+		t.Fatalf("AllUnits() error: %v", err)
+	}
+	if len(units) != 2 {
+		t.Errorf("expected 2 units (empty excluded), got %d: %v", len(units), units)
+	}
+}
+
+func TestSaveRecipe_Create(t *testing.T) {
+	d := openTestDB(t)
+
+	r := &models.Recipe{
+		Name:   "New Recipe",
+		Status: models.StatusDraft,
+	}
+	r.Ingredients = []models.RecipeIngredient{
+		{IngredientName: "butter", Quantity: "2", Unit: "tbsp"},
+		{IngredientName: "flour", Quantity: "1", Unit: "cup"},
+	}
+	tagNames := map[string][]string{
+		models.TagContextCourses:        {"dessert"},
+		models.TagContextCookingMethods: {"bake"},
+	}
+
+	if err := db.SaveRecipe(d, r, tagNames); err != nil {
+		t.Fatalf("SaveRecipe() error: %v", err)
+	}
+	if r.ID == 0 {
+		t.Error("expected recipe ID to be set after save")
+	}
+
+	got, err := db.GetRecipe(d, r.ID)
+	if err != nil {
+		t.Fatalf("GetRecipe() error: %v", err)
+	}
+	if got.Name != "New Recipe" {
+		t.Errorf("name: got %q, want %q", got.Name, "New Recipe")
+	}
+	if len(got.Ingredients) != 2 {
+		t.Errorf("expected 2 ingredients, got %d", len(got.Ingredients))
+	}
+	if len(got.Tags) != 2 {
+		t.Errorf("expected 2 tags, got %d", len(got.Tags))
+	}
+}
+
+func TestSaveRecipe_Update(t *testing.T) {
+	d := openTestDB(t)
+
+	id, err := db.CreateRecipe(d, &models.Recipe{Name: "Original", Status: models.StatusDraft})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Attach an initial tag.
+	tagID, _ := db.FindOrCreateTag(d, "lunch", models.TagContextCourses)
+	_ = db.AttachTag(d, id, tagID)
+
+	// Now update via SaveRecipe.
+	r := &models.Recipe{
+		ID:     id,
+		Name:   "Updated",
+		Status: models.StatusPublished,
+	}
+	r.Ingredients = []models.RecipeIngredient{
+		{IngredientName: "garlic", Quantity: "3", Unit: "cloves"},
+	}
+	tagNames := map[string][]string{
+		models.TagContextCourses: {"dinner"}, // replaces "lunch"
+	}
+
+	if err := db.SaveRecipe(d, r, tagNames); err != nil {
+		t.Fatalf("SaveRecipe() update error: %v", err)
+	}
+
+	got, err := db.GetRecipe(d, id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Name != "Updated" {
+		t.Errorf("name: got %q, want %q", got.Name, "Updated")
+	}
+	if got.Status != models.StatusPublished {
+		t.Errorf("status: got %q, want %q", got.Status, models.StatusPublished)
+	}
+	if len(got.Ingredients) != 1 {
+		t.Errorf("expected 1 ingredient, got %d", len(got.Ingredients))
+	}
+	// Tags should be replaced: "lunch" gone, "dinner" present.
+	courses := got.TagsByContext(models.TagContextCourses)
+	if len(courses) != 1 || courses[0] != "dinner" {
+		t.Errorf("expected [dinner] courses, got %v", courses)
+	}
+}
+
 func TestCreateAIRun(t *testing.T) {
 	d := openTestDB(t)
 
