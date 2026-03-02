@@ -171,10 +171,6 @@ Displays and edits the current configuration: API key (masked), AI model, and ex
 
 Also accessible from the interactive browser via `m` → **Configure**.
 
-## License
-
-[MIT](LICENSE)
-
 ## Building
 
 Requires Go 1.21+. No C compiler needed.
@@ -297,3 +293,7 @@ Pure-Go PDF generation library (a maintained fork of gofpdf). Used in `internal/
 
 ### [golang.org/x/net/html](https://pkg.go.dev/golang.org/x/net/html)
 The standard Go HTML parser from the `x/net` extended library. Used in `TextExtractor` to walk the DOM, strip noise nodes, and extract recipe content without pulling in a third-party HTML library.
+
+## License
+
+[MIT](LICENSE)
