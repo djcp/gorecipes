@@ -77,3 +77,15 @@ func loadEditData() (ui.EditData, error) {
 	}
 	return ui.EditData{TagsByContext: tags, IngredientNames: ingNames, Units: units}, nil
 }
+
+func loadSearchData() (ui.SearchData, error) {
+	courses, err := db.AllTagsByContext(sqlDB, models.TagContextCourses)
+	if err != nil {
+		return ui.SearchData{}, err
+	}
+	influences, err := db.AllTagsByContext(sqlDB, models.TagContextCulturalInfluences)
+	if err != nil {
+		return ui.SearchData{}, err
+	}
+	return ui.SearchData{Courses: courses, Influences: influences}, nil
+}

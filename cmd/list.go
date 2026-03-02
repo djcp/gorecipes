@@ -58,10 +58,14 @@ func runList(_ *cobra.Command, _ []string) error {
 		return nil
 	}
 
-	// Load edit autocomplete data once; refreshed after each successful edit.
+	// Load autocomplete data once; refreshed after each successful edit.
 	editData, err := loadEditData()
 	if err != nil {
 		return fmt.Errorf("loading edit data: %w", err)
+	}
+	searchData, err := loadSearchData()
+	if err != nil {
+		return fmt.Errorf("loading search data: %w", err)
 	}
 
 	// pendingDetailID, when > 0, skips the list view and opens this recipe's
@@ -83,25 +87,40 @@ func runList(_ *cobra.Command, _ []string) error {
 			pendingDetailID = 0
 		} else {
 			var goAdd, goHome, goManage, searchConfirmed bool
-			var searchQuery string
+			var filterState ui.FilterState
 			var deleteID, editID int64
 
-			selectedID, goAdd, goHome, searchConfirmed, searchQuery, deleteID, editID, goManage, err = ui.RunListUI(recipes, filter.Query)
+			selectedID, goAdd, goHome, searchConfirmed, filterState, deleteID, editID, goManage, err = ui.RunListUI(
+				recipes,
+				ui.FilterState{
+					Query:      filter.Query,
+					Courses:    filter.Courses,
+					Influences: filter.CulturalInfluences,
+					Status:     filter.StatusFilter,
+				},
+				searchData,
+			)
 			if err != nil {
 				return err
 			}
 			if goHome {
-				filter.Query = ""
+				filter = db.RecipeFilter{}
 				continue
 			}
 			if searchConfirmed {
-				filter.Query = searchQuery
+				filter = db.RecipeFilter{
+					Query:              filterState.Query,
+					Courses:            filterState.Courses,
+					CulturalInfluences: filterState.Influences,
+					StatusFilter:       filterState.Status,
+				}
 				continue
 			}
 			if goManage {
 				if err := runManageUI(); err != nil {
 					return err
 				}
+				searchData, _ = loadSearchData()
 				continue
 			}
 			if deleteID > 0 {
@@ -124,6 +143,7 @@ func runList(_ *cobra.Command, _ []string) error {
 						return fmt.Errorf("saving recipe: %w", err)
 					}
 					editData, _ = loadEditData()
+					searchData, _ = loadSearchData()
 				}
 				continue
 			}
@@ -148,13 +168,14 @@ func runList(_ *cobra.Command, _ []string) error {
 			if err := db.DeleteRecipe(sqlDB, recipe.ID); err != nil {
 				return fmt.Errorf("deleting recipe: %w", err)
 			}
-			filter.Query = ""
+			filter = db.RecipeFilter{}
 			continue
 		}
 		if goManage {
 			if err := runManageUI(); err != nil {
 				return err
 			}
+			searchData, _ = loadSearchData()
 			pendingDetailID = recipe.ID
 			continue
 		}
@@ -179,6 +200,7 @@ func runList(_ *cobra.Command, _ []string) error {
 					return fmt.Errorf("saving recipe: %w", err)
 				}
 				editData, _ = loadEditData()
+				searchData, _ = loadSearchData()
 			}
 			// Re-open detail with the (possibly updated) recipe.
 			pendingDetailID = recipe.ID
@@ -191,7 +213,7 @@ func runList(_ *cobra.Command, _ []string) error {
 			break
 		}
 
-		// User chose "home" — loop back to the list.
+		// User chose "home" — loop back to the list, preserving advanced filters.
 		filter.Query = searchQuery
 	}
 

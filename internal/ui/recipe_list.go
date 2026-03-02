@@ -9,6 +9,29 @@ import (
 	"github.com/djcp/gorecipes/internal/models"
 )
 
+// FilterState is the complete search/filter state passed in and out of RunListUI.
+type FilterState struct {
+	Query      string
+	Courses    []string
+	Influences []string
+	Status     string // "" = all; else "draft", "review", "published"
+}
+
+// SearchData holds autocomplete suggestions for the filter panel.
+type SearchData struct {
+	Courses    []string
+	Influences []string
+}
+
+type filterFocus int
+
+const (
+	ffText       filterFocus = iota
+	ffCourses
+	ffInfluences
+	ffStatus
+)
+
 // ListModel is a Bubbletea model for the interactive recipe browser.
 type ListModel struct {
 	recipes []models.Recipe
@@ -19,6 +42,24 @@ type ListModel struct {
 	height  int
 	offset  int // scroll offset
 
+	// Filter panel state.
+	filterFocus      filterFocus
+	filterCourses    []string
+	filterInfluences []string
+	filterStatus     string // "" = all
+	courseBuffer     string // currently-being-typed for courses row
+	influenceBuffer  string // currently-being-typed for influences row
+
+	// Autocomplete suggestions (loaded once from DB).
+	allCourses    []string
+	allInfluences []string
+
+	// Saved filter state — restored on Esc.
+	savedQuery      string
+	savedCourses    []string
+	savedInfluences []string
+	savedStatus     string
+
 	// Set to > 0 when the user pressed Enter to view a recipe.
 	selectedID      int64
 	quitting        bool
@@ -28,10 +69,6 @@ type ListModel struct {
 	searchConfirmed bool
 	editID          int64
 
-	// queryBeforeTyping preserves the active filter so Esc can restore it
-	// when the user entered typing mode from a results view.
-	queryBeforeTyping string
-
 	// Delete confirmation state.
 	confirmingDelete bool
 	deleteTargetID   int64
@@ -39,13 +76,17 @@ type ListModel struct {
 }
 
 // NewListModel creates a ListModel from a slice of recipes.
-// initialQuery pre-fills the search bar with an active filter when the list re-opens.
-func NewListModel(recipes []models.Recipe, initialQuery string) ListModel {
+func NewListModel(recipes []models.Recipe, initial FilterState, sd SearchData) ListModel {
 	m := ListModel{
-		recipes: recipes,
-		width:   80,
-		height:  24,
-		query:   initialQuery,
+		recipes:          recipes,
+		width:            80,
+		height:           24,
+		query:            initial.Query,
+		filterCourses:    initial.Courses,
+		filterInfluences: initial.Influences,
+		filterStatus:     initial.Status,
+		allCourses:       sd.Courses,
+		allInfluences:    sd.Influences,
 	}
 	return m
 }
@@ -71,8 +112,23 @@ func (m ListModel) EditID() int64 { return m.editID }
 // GoManage returns true when the user pressed "m" to open the manage screen.
 func (m ListModel) GoManage() bool { return m.goManage }
 
-// Query returns the current search query.
+// Query returns the current text search query.
 func (m ListModel) Query() string { return m.query }
+
+// Filter returns the current FilterState.
+func (m ListModel) Filter() FilterState {
+	return FilterState{
+		Query:      m.query,
+		Courses:    m.filterCourses,
+		Influences: m.filterInfluences,
+		Status:     m.filterStatus,
+	}
+}
+
+func (m ListModel) hasActiveFilters() bool {
+	return m.query != "" || len(m.filterCourses) > 0 ||
+		len(m.filterInfluences) > 0 || m.filterStatus != ""
+}
 
 func (m ListModel) Init() tea.Cmd { return nil }
 
@@ -94,23 +150,93 @@ func (m ListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// enterTypingMode saves the current filter state and activates typing mode.
+func (m ListModel) enterTypingMode() ListModel {
+	m.savedQuery = m.query
+	m.savedCourses = append([]string(nil), m.filterCourses...)
+	m.savedInfluences = append([]string(nil), m.filterInfluences...)
+	m.savedStatus = m.filterStatus
+	m.typing = true
+	return m
+}
+
 func (m ListModel) handleTypingKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.Type {
 	case tea.KeyEsc:
 		m.typing = false
-		m.query = m.queryBeforeTyping
-		m.queryBeforeTyping = ""
+		m.query = m.savedQuery
+		m.filterCourses = m.savedCourses
+		m.filterInfluences = m.savedInfluences
+		m.filterStatus = m.savedStatus
+		m.savedQuery, m.savedCourses, m.savedInfluences, m.savedStatus = "", nil, nil, ""
+		m.courseBuffer, m.influenceBuffer = "", ""
+
 	case tea.KeyEnter:
+		if m.filterFocus == ffCourses && m.courseBuffer != "" {
+			m.filterCourses = append(m.filterCourses, resolveMatch(m.courseBuffer, m.allCourses))
+			m.courseBuffer = ""
+			return m, nil
+		}
+		if m.filterFocus == ffInfluences && m.influenceBuffer != "" {
+			m.filterInfluences = append(m.filterInfluences, resolveMatch(m.influenceBuffer, m.allInfluences))
+			m.influenceBuffer = ""
+			return m, nil
+		}
 		m.typing = false
 		m.searchConfirmed = true
 		return m, tea.Quit
-	case tea.KeyBackspace, tea.KeyDelete:
-		if len(m.query) > 0 {
-			m.query = m.query[:len(m.query)-1]
+
+	case tea.KeyTab:
+		m.courseBuffer, m.influenceBuffer = "", ""
+		m.filterFocus = (m.filterFocus + 1) % 4
+
+	case tea.KeyShiftTab:
+		m.courseBuffer, m.influenceBuffer = "", ""
+		m.filterFocus = (m.filterFocus - 1 + 4) % 4
+
+	case tea.KeyLeft:
+		if m.filterFocus == ffStatus {
+			m.filterStatus = prevStatus(m.filterStatus)
 		}
+
+	case tea.KeyRight:
+		if m.filterFocus == ffStatus {
+			m.filterStatus = nextStatus(m.filterStatus)
+		}
+
+	case tea.KeyBackspace, tea.KeyDelete:
+		switch m.filterFocus {
+		case ffText:
+			runes := []rune(m.query)
+			if len(runes) > 0 {
+				m.query = string(runes[:len(runes)-1])
+			}
+		case ffCourses:
+			runes := []rune(m.courseBuffer)
+			if len(runes) > 0 {
+				m.courseBuffer = string(runes[:len(runes)-1])
+			} else if len(m.filterCourses) > 0 {
+				m.filterCourses = m.filterCourses[:len(m.filterCourses)-1]
+			}
+		case ffInfluences:
+			runes := []rune(m.influenceBuffer)
+			if len(runes) > 0 {
+				m.influenceBuffer = string(runes[:len(runes)-1])
+			} else if len(m.filterInfluences) > 0 {
+				m.filterInfluences = m.filterInfluences[:len(m.filterInfluences)-1]
+			}
+		}
+
 	default:
 		if msg.Type == tea.KeyRunes {
-			m.query += string(msg.Runes)
+			switch m.filterFocus {
+			case ffText:
+				m.query += string(msg.Runes)
+			case ffCourses:
+				m.courseBuffer += string(msg.Runes)
+			case ffInfluences:
+				m.influenceBuffer += string(msg.Runes)
+			}
 		}
 	}
 	return m, nil
@@ -136,8 +262,8 @@ func (m ListModel) handleNavKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.quitting = true
 		return m, tea.Quit
 	case "esc":
-		if m.query != "" {
-			// Clear active filter and return to the full list.
+		if m.hasActiveFilters() {
+			// Clear active filters and return to the full list.
 			m.goHome = true
 			return m, tea.Quit
 		}
@@ -163,8 +289,8 @@ func (m ListModel) handleNavKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.deleteTargetName = m.recipes[m.cursor].Name
 		}
 	case "/":
-		m.queryBeforeTyping = m.query
-		m.typing = true
+		m = m.enterTypingMode()
+		m.filterFocus = ffText
 	case "up", "k":
 		if m.cursor > 0 {
 			m.cursor--
@@ -172,9 +298,9 @@ func (m ListModel) handleNavKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				m.offset = m.cursor
 			}
 		} else {
-			// Already at the top row — move focus up into the search bar.
-			m.queryBeforeTyping = m.query
-			m.typing = true
+			// Already at the top row — move focus up into the search panel.
+			m = m.enterTypingMode()
+			m.filterFocus = ffText
 		}
 	case "down", "j":
 		if m.cursor < len(m.recipes)-1 {
@@ -196,16 +322,16 @@ func (m ListModel) handleNavKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-
 func (m ListModel) visibleRows() int {
 	// Banner (4) + col header (1) + blank-before-footer (1) + footer (2) = 8 fixed overhead.
 	// Selected row expands to 2 lines, so we reserve 1 extra = 9 total overhead.
-	// Inactive search bar (query shown, not typing) adds 1 line.
-	// Active search bar (bordered box) adds 4 lines and replaces the inactive bar.
+	// Inactive filter bar adds 1 line.
+	// Active filter panel is a 7-line bordered box (5 content rows + 2 border lines)
+	// plus 2 blank lines after = 9 total lines taken, minus the base 1 = net 8 extra.
 	v := m.height - 9
 	if m.typing {
-		v -= 4
-	} else if m.query != "" {
+		v -= 8
+	} else if m.hasActiveFilters() {
 		v -= 1
 	}
 	if v < 1 {
@@ -236,7 +362,7 @@ func (m ListModel) View() string {
 	}
 
 	// Empty DB — show a centered info box with fill so the footer stays pinned.
-	if len(m.recipes) == 0 && m.query == "" && !m.typing {
+	if len(m.recipes) == 0 && !m.hasActiveFilters() && !m.typing {
 		sb.WriteString(m.viewEmpty())
 		used := strings.Count(sb.String(), "\n")
 		if fill := m.height - used - 3; fill > 0 {
@@ -247,12 +373,13 @@ func (m ListModel) View() string {
 		return sb.String()
 	}
 
-	// Search bar — shown when typing or when an active query is filtering results.
-	if m.typing || m.query != "" {
-		sb.WriteString(renderSearchBar(m.query, m.typing, m.width))
+	// Filter panel — expanded when typing, compact summary line when filters active.
+	if m.typing || m.hasActiveFilters() {
 		if m.typing {
+			sb.WriteString(m.renderSearchPanel())
 			sb.WriteString("\n\n")
 		} else {
+			sb.WriteString(m.renderInactiveFilter())
 			sb.WriteString("\n")
 		}
 	}
@@ -264,7 +391,7 @@ func (m ListModel) View() string {
 	visible := m.visibleRows()
 	if len(m.recipes) == 0 {
 		// A filter/search was active but returned nothing.
-		sb.WriteString(MutedStyle.Render(fmt.Sprintf(`  No recipes match "%s".`, m.query)))
+		sb.WriteString(MutedStyle.Render("  No recipes match the current filters."))
 		sb.WriteString("\n")
 		for i := 1; i <= visible; i++ {
 			sb.WriteString("\n")
@@ -304,23 +431,44 @@ func (m ListModel) View() string {
 	return sb.String()
 }
 
-func renderBanner(width int) string {
-	appName := lipgloss.NewStyle().
-		Bold(true).
-		Foreground(ColorPrimary).
-		Render("🍳  gorecipes")
-
-	title := lipgloss.NewStyle().
-		Padding(1, 2).
-		Render(appName)
-
+// renderSearchPanel renders the expanded filter panel shown when m.typing is true.
+func (m ListModel) renderSearchPanel() string {
+	rows := []string{
+		renderTextSearchRow(m.query, m.filterFocus == ffText),
+		MutedStyle.Render("  tab: next field    enter: search    esc: cancel"),
+		renderTagFilterRow("courses:", models.TagContextCourses, m.filterCourses, m.courseBuffer, m.allCourses, m.filterFocus == ffCourses),
+		renderTagFilterRow("influences:", models.TagContextCulturalInfluences, m.filterInfluences, m.influenceBuffer, m.allInfluences, m.filterFocus == ffInfluences),
+		renderStatusRow(m.filterStatus, m.filterFocus == ffStatus),
+	}
 	return lipgloss.NewStyle().
-		Border(lipgloss.NormalBorder(), false, false, true, false).
-		BorderForeground(ColorBorder).
-		Width(width - 2).
-		Render(title)
+		Border(lipgloss.NormalBorder()).
+		BorderForeground(ColorPrimary).
+		Width(m.width - 4).
+		Padding(0, 1).
+		Render(strings.Join(rows, "\n"))
 }
 
+// renderInactiveFilter renders the compact summary line when filters are active but panel is closed.
+func (m ListModel) renderInactiveFilter() string {
+	prefix := MutedStyle.Render("  / ")
+	var parts []string
+	if m.query != "" {
+		parts = append(parts, lipgloss.NewStyle().Foreground(ColorPrimary).Render(m.query))
+	}
+	if len(m.filterCourses) > 0 {
+		parts = append(parts, MutedStyle.Render("courses: ")+strings.Join(m.filterCourses, ", "))
+	}
+	if len(m.filterInfluences) > 0 {
+		parts = append(parts, MutedStyle.Render("influences: ")+strings.Join(m.filterInfluences, ", "))
+	}
+	if m.filterStatus != "" {
+		parts = append(parts, StatusBadge(m.filterStatus))
+	}
+	sep := MutedStyle.Render("  ·  ")
+	return prefix + strings.Join(parts, sep)
+}
+
+// renderSearchBar renders the single-row bordered search bar used by the detail view.
 func renderSearchBar(query string, typing bool, width int) string {
 	prefix := MutedStyle.Render("  / ")
 	cursor := lipgloss.NewStyle().
@@ -342,7 +490,7 @@ func renderSearchBar(query string, typing bool, width int) string {
 	}
 
 	bar := lipgloss.NewStyle().
-		Width(width-2).
+		Width(width - 2).
 		Render(prefix + content)
 
 	if typing {
@@ -355,6 +503,150 @@ func renderSearchBar(query string, typing bool, width int) string {
 	}
 
 	return bar
+}
+
+func renderTextSearchRow(query string, focused bool) string {
+	prefix := MutedStyle.Render("  / ")
+	cursor := lipgloss.NewStyle().
+		Background(ColorPrimary).
+		Foreground(lipgloss.Color("#FFFFFF")).
+		Render(" ")
+
+	var content string
+	if focused {
+		if query == "" {
+			content = MutedStyle.Render("search by title or ingredient...") + cursor
+		} else {
+			content = query + cursor
+		}
+	} else if query != "" {
+		content = lipgloss.NewStyle().Foreground(ColorPrimary).Render(query)
+	} else {
+		content = MutedStyle.Render("search by title or ingredient...")
+	}
+
+	return prefix + content
+}
+
+func renderTagFilterRow(label, ctx string, pills []string, buffer string, suggestions []string, focused bool) string {
+	var sb strings.Builder
+	sb.WriteString(MutedStyle.Render(fmt.Sprintf("  %-12s", label)))
+
+	pillStyle := lipgloss.NewStyle().
+		Background(TagStyle(ctx).GetBackground()).
+		Foreground(lipgloss.Color("#FFFFFF")).
+		Padding(0, 1)
+
+	for _, p := range pills {
+		sb.WriteString(pillStyle.Render(p))
+		sb.WriteString(" ")
+	}
+
+	if focused {
+		cursor := lipgloss.NewStyle().
+			Background(ColorPrimary).
+			Foreground(lipgloss.Color("#FFFFFF")).
+			Render(" ")
+		match := findFirstMatch(buffer, suggestions)
+		if buffer != "" {
+			sb.WriteString(buffer)
+			if match != "" {
+				sb.WriteString(cursor)
+				sb.WriteString(MutedStyle.Render(match[len(buffer):]))
+			} else {
+				sb.WriteString(cursor)
+			}
+		} else {
+			if len(pills) == 0 {
+				sb.WriteString(MutedStyle.Render("type to filter... "))
+			}
+			sb.WriteString(cursor)
+		}
+	} else if len(pills) == 0 {
+		sb.WriteString(MutedStyle.Render("any"))
+	}
+
+	return sb.String()
+}
+
+func renderStatusRow(status string, focused bool) string {
+	var sb strings.Builder
+	sb.WriteString(MutedStyle.Render("  status:     "))
+
+	if focused {
+		sb.WriteString(MutedStyle.Render("◀ "))
+		if status == "" {
+			sb.WriteString("all")
+		} else {
+			sb.WriteString(StatusBadge(status))
+		}
+		sb.WriteString(MutedStyle.Render(" ▶"))
+	} else {
+		if status == "" {
+			sb.WriteString(MutedStyle.Render("all"))
+		} else {
+			sb.WriteString(StatusBadge(status))
+		}
+	}
+
+	return sb.String()
+}
+
+var statusCycle = []string{"", "draft", "review", "published"}
+
+func nextStatus(s string) string {
+	for i, v := range statusCycle {
+		if v == s {
+			return statusCycle[(i+1)%len(statusCycle)]
+		}
+	}
+	return ""
+}
+
+func prevStatus(s string) string {
+	for i, v := range statusCycle {
+		if v == s {
+			return statusCycle[(i-1+len(statusCycle))%len(statusCycle)]
+		}
+	}
+	return ""
+}
+
+func findFirstMatch(buffer string, suggestions []string) string {
+	if buffer == "" {
+		return ""
+	}
+	lower := strings.ToLower(buffer)
+	for _, s := range suggestions {
+		if strings.HasPrefix(strings.ToLower(s), lower) {
+			return s
+		}
+	}
+	return ""
+}
+
+func resolveMatch(buffer string, suggestions []string) string {
+	if match := findFirstMatch(buffer, suggestions); match != "" {
+		return match
+	}
+	return buffer
+}
+
+func renderBanner(width int) string {
+	appName := lipgloss.NewStyle().
+		Bold(true).
+		Foreground(ColorPrimary).
+		Render("🍳  gorecipes")
+
+	title := lipgloss.NewStyle().
+		Padding(1, 2).
+		Render(appName)
+
+	return lipgloss.NewStyle().
+		Border(lipgloss.NormalBorder(), false, false, true, false).
+		BorderForeground(ColorBorder).
+		Width(width - 2).
+		Render(title)
 }
 
 func listNameWidth(width int) int {
@@ -505,16 +797,22 @@ func truncate(s string, max int) string {
 }
 
 // RunListUI runs the interactive recipe browser.
-// Returns the selected recipe ID (or 0), navigation signals, the search query,
+// Returns the selected recipe ID (or 0), navigation signals, the active filter state,
 // the recipe ID confirmed for deletion (or 0), the recipe ID to edit (or 0),
 // whether the user pressed "m" to open manage, and any error.
-func RunListUI(recipes []models.Recipe, initialQuery string) (selectedID int64, goAdd bool, goHome bool, searchConfirmed bool, searchQuery string, deleteID int64, editID int64, goManage bool, err error) {
-	m := NewListModel(recipes, initialQuery)
+func RunListUI(
+	recipes []models.Recipe,
+	initial FilterState,
+	sd SearchData,
+) (selectedID int64, goAdd bool, goHome bool, searchConfirmed bool,
+	filter FilterState, deleteID int64, editID int64, goManage bool, err error) {
+	m := NewListModel(recipes, initial, sd)
 	p := tea.NewProgram(m, tea.WithAltScreen())
 	final, runErr := p.Run()
 	if runErr != nil {
-		return 0, false, false, false, "", 0, 0, false, runErr
+		return 0, false, false, false, FilterState{}, 0, 0, false, runErr
 	}
 	fm := final.(ListModel)
-	return fm.SelectedID(), fm.GoAdd(), fm.GoHome(), fm.SearchConfirmed(), fm.Query(), fm.DeleteTargetID(), fm.EditID(), fm.GoManage(), nil
+	return fm.SelectedID(), fm.GoAdd(), fm.GoHome(), fm.SearchConfirmed(),
+		fm.Filter(), fm.DeleteTargetID(), fm.EditID(), fm.GoManage(), nil
 }
