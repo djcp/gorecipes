@@ -171,6 +171,10 @@ Displays and edits the current configuration: API key (masked), AI model, and ex
 
 Also accessible from the interactive browser via `m` → **Configure**.
 
+## License
+
+[MIT](LICENSE)
+
 ## Building
 
 Requires Go 1.21+. No C compiler needed.
