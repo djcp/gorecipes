@@ -49,7 +49,7 @@ Sections:
 Description:
 - 1-2 sentences describing the dish itself — what it is and what makes it good. Maximum 2000 characters.
 - Do NOT include personal stories, anecdotes, recipe origin stories, or blog filler
-- Do NOT include tips, variations, serving suggestions, or storage instructions
+- Include tips, variations, serving suggestions, and storage instructions but stick to facts and remove anecdotes, life stories, ads, etc.
 
 Directions:
 - Clear numbered steps — ONLY actionable cooking instructions. Maximum 8000 characters total.
