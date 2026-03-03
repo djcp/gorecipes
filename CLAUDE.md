@@ -1,5 +1,14 @@
 # gorecipes — development notes
 
+## Before committing or opening a PR
+
+Always run these two commands and fix any issues before committing or opening a PR:
+
+```sh
+go test ./...        # all tests must pass
+gofmt -l .           # any listed files need gofmt -w <file>
+```
+
 ## UI / lipgloss rendering
 
 ### Centering multi-line blocks (dialogs, forms, overlays)
@@ -126,6 +135,14 @@ The manage system uses a loop in `cmd/helpers.go` (`runManageUI()`): show the la
 ### Phase-driven sub-screen pattern
 
 Each manage sub-screen (`manage_tags.go`, `manage_ingredients.go`, `manage_units.go`, `manage_ai_runs.go`) uses an explicit `phase` enum. `Update` routes key messages to phase-specific handlers; each phase has its own `view*` and `renderFooter*` methods. Keep this pattern consistent — resist merging phase logic into one large `Update` or `View`.
+
+### Retry action — availability guard
+
+The `r retry` action in the AI runs detail view is available for **any** run tied to an existing recipe (`m.fullRun.RecipeID != nil`). Do not add a `!m.fullRun.Success` guard — retry is valid for succeeded runs too (e.g. to re-extract with a better prompt or model).
+
+The retry action in the recipe detail view (`recipe_detail.go`) uses `m.recipe.IsFailed()` to guard the `r` key and conditionally show the footer hint. This is a different guard because it only makes sense to prompt a retry directly on a recipe that is in `processing_failed` status.
+
+Both code paths call `runRetryPipeline(recipeID)` in `cmd/helpers.go`, which runs the progress TUI and returns; the caller then reloads the recipe from the DB and continues the loop.
 
 ### Inline list notice (no result page)
 
