@@ -323,9 +323,9 @@ func (m EditModel) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			if m.statusIdx < len(editStatusOptions)-1 {
 				m.statusIdx++
 			}
-		case "tab":
+		case "tab", "down":
 			m.advanceFocus()
-		case "shift+tab":
+		case "shift+tab", "up":
 			m.retreatFocus()
 		}
 		return m, nil
@@ -388,16 +388,16 @@ func (m EditModel) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 // The caller must assign the returned input back to the appropriate field.
 func (m EditModel) handleTextInput(msg tea.KeyMsg, inp textinput.Model) (EditModel, textinput.Model, tea.Cmd) {
 	switch msg.String() {
-	case "tab":
+	case "tab", "down":
 		oldVal := inp.Value()
 		newInp, cmd := inp.Update(msg)
-		if newInp.Value() != oldVal {
+		if msg.String() == "tab" && newInp.Value() != oldVal {
 			// Tab accepted a suggestion — stay on this field.
 			return m, newInp, cmd
 		}
 		m.advanceFocus()
 		return m, inp, nil
-	case "shift+tab":
+	case "shift+tab", "up":
 		m.retreatFocus()
 		return m, inp, nil
 	default:
@@ -1082,8 +1082,8 @@ func renderEditBanner(name string, width int) string {
 
 func renderEditFooter(width int) string {
 	keys := []string{
-		"⇥ tab next",
-		"⇤ shift+tab back",
+		"↑↓/⇥ tab next",
+		"↓↑/⇤ shift+tab back",
 		"💾 ctrl+s save",
 		"✖ esc cancel",
 	}
