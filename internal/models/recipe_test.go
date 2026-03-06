@@ -3,7 +3,7 @@ package models_test
 import (
 	"testing"
 
-	"github.com/djcp/gorecipes/internal/models"
+	"github.com/djcp/enplace/internal/models"
 )
 
 func ptr[T any](v T) *T { return &v }

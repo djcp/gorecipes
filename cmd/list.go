@@ -5,9 +5,9 @@ import (
 	"os"
 	"strings"
 
-	"github.com/djcp/gorecipes/internal/db"
-	"github.com/djcp/gorecipes/internal/export"
-	"github.com/djcp/gorecipes/internal/ui"
+	"github.com/djcp/enplace/internal/db"
+	"github.com/djcp/enplace/internal/export"
+	"github.com/djcp/enplace/internal/ui"
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
 )
@@ -45,7 +45,7 @@ func runList(_ *cobra.Command, _ []string) error {
 		}
 		if len(recipes) == 0 {
 			fmt.Println(ui.MutedStyle.Render("\n  No recipes found."))
-			fmt.Println(ui.MutedStyle.Render("  Add one with: gorecipes add <url>"))
+			fmt.Println(ui.MutedStyle.Render("  Add one with: enplace add <url>"))
 			fmt.Println()
 			return nil
 		}

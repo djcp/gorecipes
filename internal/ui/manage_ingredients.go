@@ -7,7 +7,7 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/djcp/gorecipes/internal/db"
+	"github.com/djcp/enplace/internal/db"
 	"github.com/jmoiron/sqlx"
 )
 

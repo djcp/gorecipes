@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/djcp/gorecipes/internal/services"
+	"github.com/djcp/enplace/internal/services"
 )
 
 func TestExtractTextFromURL_SchemaOrg(t *testing.T) {

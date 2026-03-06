@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/djcp/gorecipes/internal/services"
+	"github.com/djcp/enplace/internal/services"
 )
 
 // mockAIClient implements services.AIClient for testing.

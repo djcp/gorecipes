@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/djcp/gorecipes/internal/models"
+	"github.com/djcp/enplace/internal/models"
 )
 
 // ToText renders a recipe as plain text.

@@ -35,7 +35,7 @@ func ExtractTextFromURL(url string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("invalid URL: %w", err)
 	}
-	req.Header.Set("User-Agent", "Mozilla/5.0 (compatible; gorecipes/1.0)")
+	req.Header.Set("User-Agent", "Mozilla/5.0 (compatible; enplace/1.0)")
 	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
 
 	resp, err := client.Do(req)

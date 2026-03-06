@@ -4,11 +4,11 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/djcp/gorecipes/internal/config"
-	"github.com/djcp/gorecipes/internal/db"
-	"github.com/djcp/gorecipes/internal/models"
-	"github.com/djcp/gorecipes/internal/services"
-	"github.com/djcp/gorecipes/internal/ui"
+	"github.com/djcp/enplace/internal/config"
+	"github.com/djcp/enplace/internal/db"
+	"github.com/djcp/enplace/internal/models"
+	"github.com/djcp/enplace/internal/services"
+	"github.com/djcp/enplace/internal/ui"
 )
 
 // runConfigUI opens the interactive config editor and saves changes if the user confirms.

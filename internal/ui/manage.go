@@ -141,7 +141,7 @@ func renderManageLandingBanner(width int) string {
 		Bold(true).
 		Foreground(ColorPrimary).
 		Render(
-			"🍳  gorecipes  " +
+			"🍳  enplace  " +
 				MutedStyle.Render("/") +
 				"  " +
 				lipgloss.NewStyle().

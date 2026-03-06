@@ -509,13 +509,13 @@ func (m AddModel) viewProgress(contentHeight int) string {
 	return sb.String()
 }
 
-// renderAddBanner renders a "🍳  gorecipes / <subtitle>" banner.
+// renderAddBanner renders a "🍳  enplace / <subtitle>" banner.
 func renderAddBanner(subtitle string, width int) string {
 	breadcrumb := lipgloss.NewStyle().
 		Bold(true).
 		Foreground(ColorPrimary).
 		Render(
-			"🍳  gorecipes  " +
+			"🍳  enplace  " +
 				MutedStyle.Render("/") +
 				"  " +
 				lipgloss.NewStyle().

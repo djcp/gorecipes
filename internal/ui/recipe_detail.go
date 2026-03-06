@@ -8,7 +8,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/glamour"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/djcp/gorecipes/internal/models"
+	"github.com/djcp/enplace/internal/models"
 	"github.com/muesli/termenv"
 )
 
@@ -493,7 +493,7 @@ func renderMarkdown(text string, width int) string {
 	return out
 }
 
-// renderDetailBanner renders the banner with a "gorecipes / Recipe Name" breadcrumb.
+// renderDetailBanner renders the banner with an "enplace / Recipe Name" breadcrumb.
 func renderDetailBanner(name string, width int) string {
 	hints := MutedStyle.Render("🔍 / search") + "   " + MutedStyle.Render("⚙ m manage") + "   " + MutedStyle.Render("🏠 h home") + "   " + MutedStyle.Render("🚪 q quit")
 	hintsWidth := lipgloss.Width(hints)
@@ -507,7 +507,7 @@ func renderDetailBanner(name string, width int) string {
 		Bold(true).
 		Foreground(ColorPrimary).
 		Render(
-			"🍳  gorecipes  " +
+			"🍳  enplace  " +
 				MutedStyle.Render("/") +
 				"  " +
 				lipgloss.NewStyle().

@@ -9,7 +9,7 @@ import (
 
 const (
 	DefaultModel  = "claude-haiku-4-5-20251001"
-	ConfigDirName = "gorecipes"
+	ConfigDirName = "enplace"
 	ConfigFile    = "config.json"
 	DBFile        = "recipes.db"
 )
