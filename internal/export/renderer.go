@@ -3,8 +3,8 @@ package export
 import (
 	"strings"
 
-	"github.com/djcp/gorecipes/internal/models"
-	"github.com/djcp/gorecipes/internal/version"
+	"github.com/djcp/enplace/internal/models"
+	"github.com/djcp/enplace/internal/version"
 )
 
 // Renderer is implemented by each export format. RenderRecipe calls its
@@ -95,6 +95,6 @@ func RenderRecipe(r *models.Recipe, opts Options, ren Renderer) ([]byte, error) 
 		ren.SourceURL(r.SourceURL)
 	}
 
-	ren.Footer(opts.Credits, "exported from gorecipes "+version.Version)
+	ren.Footer(opts.Credits, "exported from enplace "+version.Version)
 	return ren.Result()
 }

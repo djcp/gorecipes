@@ -4,7 +4,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
-	"github.com/djcp/gorecipes/internal/version"
+	"github.com/djcp/enplace/internal/version"
 )
 
 // Palette — warm, food-inspired earth tones. Each color uses AdaptiveColor so
@@ -142,7 +142,7 @@ func statusLabel(status string) string {
 // innerWidth is the content width of the rendered footer block (Width() value).
 func footerLine(keys []string, innerWidth int) string {
 	left := "  " + strings.Join(keys, "   ")
-	right := lipgloss.NewStyle().Foreground(ColorFaint).Render("gorecipes " + version.Version)
+	right := lipgloss.NewStyle().Foreground(ColorFaint).Render("enplace " + version.Version)
 	gap := innerWidth - lipgloss.Width(left) - lipgloss.Width(right)
 	if gap < 1 {
 		gap = 1
@@ -180,7 +180,7 @@ func renderManageBanner(pageName string, width int) string {
 		Bold(true).
 		Foreground(ColorPrimary).
 		Render(
-			"🍳  gorecipes  " +
+			"🍳  enplace  " +
 				MutedStyle.Render("/") +
 				"  manage  " +
 				MutedStyle.Render("/") +

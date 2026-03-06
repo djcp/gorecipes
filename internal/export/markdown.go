@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/djcp/gorecipes/internal/models"
+	"github.com/djcp/enplace/internal/models"
 )
 
 // ToMarkdown renders a recipe as a Markdown document.

@@ -9,7 +9,7 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/djcp/gorecipes/internal/models"
+	"github.com/djcp/enplace/internal/models"
 )
 
 // EditData carries autocomplete options loaded from the database.
@@ -1048,13 +1048,13 @@ func (m EditModel) assembleRecipe() (*models.Recipe, map[string][]string) {
 	return r, tagNames
 }
 
-// renderEditBanner renders the banner with "🍳  gorecipes  /  [name] / Edit".
+// renderEditBanner renders the banner with "🍳  enplace  /  [name] / Edit".
 func renderEditBanner(name string, width int) string {
 	breadcrumb := lipgloss.NewStyle().
 		Bold(true).
 		Foreground(ColorPrimary).
 		Render(
-			"🍳  gorecipes  " +
+			"🍳  enplace  " +
 				MutedStyle.Render("/") +
 				"  " +
 				lipgloss.NewStyle().

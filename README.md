@@ -1,4 +1,4 @@
-# gorecipes
+# enplace
 
 A CLI recipe manager that captures recipes from URLs or pasted text and uses Claude AI to extract structured data — ingredients, directions, timing, and classification tags — stored locally in SQLite.
 
@@ -14,22 +14,22 @@ A CLI recipe manager that captures recipes from URLs or pasted text and uses Cla
 - **Styled output** — ingredient tables, markdown-rendered directions, tag pills, and timing summaries in the terminal
 - **Data management** — `m` from the list or detail view opens a manage screen for cleaning up tags (rename, merge, delete by context), ingredients (rename, merge), and serving units (rename, merge); also browses AI run history with individual delete and bulk prune of runs older than 30 days
 - **Quiet/scripted mode** — `add --quiet <url>` runs the pipeline silently and exits non-zero with an error on stderr on failure
-- **Onboarding** — prompts for an Anthropic API key on first run and stores it at `~/.config/gorecipes/config.json`
+- **Onboarding** — prompts for an Anthropic API key on first run and stores it at `~/.config/enplace/config.json`
 - **Audit trail** — every AI call is recorded with its prompt, raw response, duration, and success/failure status; browsable and manageable via the manage screen
 - **No external dependencies at runtime** — single static binary; SQLite is compiled in with no CGO requirement
 
 ## Commands
 
 ```
-gorecipes                          Open the interactive recipe browser (default)
-gorecipes add                      Choose how to add: URL, paste, or manual form
-gorecipes add <url>                Add a recipe from a URL
-gorecipes add --paste              Add a recipe from pasted text
-gorecipes add --quiet <url>        Extract and save silently (for scripting)
-gorecipes list                     Open the interactive recipe browser
-gorecipes list --query foo         Non-interactive filtered list (also when stdout is not a TTY)
-gorecipes show <id>                Display a recipe by ID
-gorecipes config                   View or update configuration (API key, model)
+enplace                          Open the interactive recipe browser (default)
+enplace add                      Choose how to add: URL, paste, or manual form
+enplace add <url>                Add a recipe from a URL
+enplace add --paste              Add a recipe from pasted text
+enplace add --quiet <url>        Extract and save silently (for scripting)
+enplace list                     Open the interactive recipe browser
+enplace list --query foo         Non-interactive filtered list (also when stdout is not a TTY)
+enplace show <id>                Display a recipe by ID
+enplace config                   View or update configuration (API key, model)
 ```
 
 ### add
@@ -54,12 +54,12 @@ When run without a URL argument or `--paste`, a mode-selection screen appears:
 
 On completion the recipe detail view opens. On pipeline failure the status is set to `processing_failed` and the recipe is preserved for inspection.
 
-**Manual mode** (`Enter manually` or `gorecipes add` → select the option) opens the edit form with all fields blank.
+**Manual mode** (`Enter manually` or `enplace add` → select the option) opens the edit form with all fields blank.
 
 **Quiet mode** (`-q` / `--quiet`) requires a URL argument, runs the pipeline with no TUI, and produces no output on success. On failure it exits with code 1 and writes the error to stderr — useful for automation:
 
 ```sh
-gorecipes add -q https://example.com/recipe && echo "saved"
+enplace add -q https://example.com/recipe && echo "saved"
 ```
 
 ### list / browser
@@ -178,8 +178,8 @@ Requires Go 1.21+. No C compiler needed.
 
 ```sh
 git clone ...
-cd gorecipes
-go build -o gorecipes .
+cd enplace
+go build -o enplace .
 ```
 
 Install to your PATH:
@@ -204,11 +204,11 @@ Tests use an in-memory SQLite database and a mock `AIClient` interface — no AP
 
 ## Configuration
 
-On first run, `gorecipes` prompts for an Anthropic API key and writes:
+On first run, `enplace` prompts for an Anthropic API key and writes:
 
 ```
-~/.config/gorecipes/config.json   — API key, model name, database path
-~/.local/share/gorecipes/         — SQLite database directory
+~/.config/enplace/config.json   — API key, model name, database path
+~/.local/share/enplace/         — SQLite database directory
 ```
 
 Both paths follow the XDG Base Directory spec. Set `XDG_CONFIG_HOME` or `XDG_DATA_HOME` to override.
@@ -216,7 +216,7 @@ Both paths follow the XDG Base Directory spec. Set `XDG_CONFIG_HOME` or `XDG_DAT
 The model defaults to `claude-haiku-4-5-20251001`. To use a more capable model:
 
 ```sh
-gorecipes config
+enplace config
 ```
 
 Or edit `config.json` directly and set `"anthropic_model"` to any Claude model ID.

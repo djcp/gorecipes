@@ -5,7 +5,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/djcp/gorecipes/internal/models"
+	"github.com/djcp/enplace/internal/models"
 )
 
 // filterState holds all state for the shared filter pane.

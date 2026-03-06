@@ -1,4 +1,4 @@
-# gorecipes — development notes
+# enplace — development notes
 
 ## Before committing or opening a PR
 

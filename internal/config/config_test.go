@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/djcp/gorecipes/internal/config"
+	"github.com/djcp/enplace/internal/config"
 )
 
 func TestLoad_DefaultsWhenMissing(t *testing.T) {
@@ -106,7 +106,7 @@ func TestLoad_SetsDefaultModelWhenMissing(t *testing.T) {
 	t.Setenv("XDG_DATA_HOME", t.TempDir())
 
 	// Write config without model field.
-	cfgDir := filepath.Join(dir, "gorecipes")
+	cfgDir := filepath.Join(dir, "enplace")
 	if err := os.MkdirAll(cfgDir, 0o700); err != nil {
 		t.Fatal(err)
 	}

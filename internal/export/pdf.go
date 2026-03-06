@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"strings"
 
-	"github.com/djcp/gorecipes/internal/models"
+	"github.com/djcp/enplace/internal/models"
 	"github.com/go-pdf/fpdf"
 )
 

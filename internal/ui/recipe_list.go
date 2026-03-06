@@ -6,7 +6,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/djcp/gorecipes/internal/models"
+	"github.com/djcp/enplace/internal/models"
 )
 
 // FilterState is the complete search/filter state passed in and out of RunListUI.
@@ -431,7 +431,7 @@ func renderBanner(width int) string {
 	appName := lipgloss.NewStyle().
 		Bold(true).
 		Foreground(ColorPrimary).
-		Render("🍳  gorecipes")
+		Render("🍳  enplace")
 
 	hints := MutedStyle.Render("🔍 / search") + "   " + MutedStyle.Render("⚙ m manage") + "   " + MutedStyle.Render("🏠 h home") + "   " + MutedStyle.Render("🚪 q quit")
 	innerWidth := width - 6 // border(2) + padding(2+2)

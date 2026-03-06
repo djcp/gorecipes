@@ -1,4 +1,4 @@
-module github.com/djcp/gorecipes
+module github.com/djcp/enplace
 
 go 1.25.0
 

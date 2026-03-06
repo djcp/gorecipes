@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/djcp/gorecipes/internal/db"
-	"github.com/djcp/gorecipes/internal/export"
-	"github.com/djcp/gorecipes/internal/models"
-	"github.com/djcp/gorecipes/internal/services"
-	"github.com/djcp/gorecipes/internal/ui"
+	"github.com/djcp/enplace/internal/db"
+	"github.com/djcp/enplace/internal/export"
+	"github.com/djcp/enplace/internal/models"
+	"github.com/djcp/enplace/internal/services"
+	"github.com/djcp/enplace/internal/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -25,13 +25,13 @@ var addCmd = &cobra.Command{
 
 Provide a URL as an argument, or use --paste to enter text directly:
 
-  gorecipes add https://example.com/recipe
-  gorecipes add --paste
+  enplace add https://example.com/recipe
+  enplace add --paste
 
 Use --quiet to extract and save without launching the UI (exits 0 on success,
 non-zero with an error message on stderr on failure — useful for scripting):
 
-  gorecipes add --quiet https://example.com/recipe`,
+  enplace add --quiet https://example.com/recipe`,
 	Args:         cobra.MaximumNArgs(1),
 	RunE:         runAdd,
 	SilenceUsage: true, // don't dump usage text to stderr on error

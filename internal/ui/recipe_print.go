@@ -8,8 +8,8 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/djcp/gorecipes/internal/export"
-	"github.com/djcp/gorecipes/internal/models"
+	"github.com/djcp/enplace/internal/export"
+	"github.com/djcp/enplace/internal/models"
 )
 
 type printPhase int
@@ -353,7 +353,7 @@ func renderPrintBanner(name string, width int) string {
 		Bold(true).
 		Foreground(ColorPrimary).
 		Render(
-			"🍳  gorecipes  " +
+			"🍳  enplace  " +
 				MutedStyle.Render("/") +
 				"  " +
 				lipgloss.NewStyle().

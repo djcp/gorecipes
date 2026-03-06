@@ -6,8 +6,8 @@ import (
 
 	"github.com/charmbracelet/huh"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/djcp/gorecipes/internal/config"
-	"github.com/djcp/gorecipes/internal/ui"
+	"github.com/djcp/enplace/internal/config"
+	"github.com/djcp/enplace/internal/ui"
 	"github.com/spf13/cobra"
 )
 

@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/djcp/gorecipes/internal/db"
-	"github.com/djcp/gorecipes/internal/models"
-	"github.com/djcp/gorecipes/internal/services"
+	"github.com/djcp/enplace/internal/db"
+	"github.com/djcp/enplace/internal/models"
+	"github.com/djcp/enplace/internal/services"
 	"github.com/jmoiron/sqlx"
 )
 

@@ -6,7 +6,7 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/djcp/gorecipes/internal/config"
+	"github.com/djcp/enplace/internal/config"
 )
 
 type configFocus int
@@ -260,7 +260,7 @@ func renderConfigBanner(width int) string {
 		Bold(true).
 		Foreground(ColorPrimary).
 		Render(
-			"🍳  gorecipes  " +
+			"🍳  enplace  " +
 				MutedStyle.Render("/") +
 				"  " +
 				lipgloss.NewStyle().

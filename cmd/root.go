@@ -7,10 +7,10 @@ import (
 
 	"github.com/charmbracelet/huh"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/djcp/gorecipes/internal/config"
-	"github.com/djcp/gorecipes/internal/db"
-	"github.com/djcp/gorecipes/internal/ui"
-	"github.com/djcp/gorecipes/internal/version"
+	"github.com/djcp/enplace/internal/config"
+	"github.com/djcp/enplace/internal/db"
+	"github.com/djcp/enplace/internal/ui"
+	"github.com/djcp/enplace/internal/version"
 	"github.com/jmoiron/sqlx"
 	"github.com/spf13/cobra"
 )
@@ -22,9 +22,9 @@ var (
 
 // Root is the top-level command. Running it with no subcommand opens the recipe browser.
 var Root = &cobra.Command{
-	Use:     "gorecipes",
+	Use:     "enplace",
 	Short:   "A CLI recipe manager powered by Claude AI",
-	Long:    "gorecipes — save recipes from URLs or pasted text.\nClaude extracts structured data automatically.",
+	Long:    "enplace — save recipes from URLs or pasted text.\nClaude extracts structured data automatically.",
 	Version: version.Version,
 	RunE:    runList,
 }
@@ -76,7 +76,7 @@ func runOnboarding(cfg *config.Config) error {
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(ui.ColorBorder).
 		Padding(1, 3).
-		Render("🍳  Welcome to gorecipes\n\n" +
+		Render("🍳  Welcome to enplace\n\n" +
 			lipgloss.NewStyle().
 				Bold(false).
 				Foreground(ui.ColorMuted).
@@ -89,7 +89,7 @@ func runOnboarding(cfg *config.Config) error {
 		huh.NewGroup(
 			huh.NewInput().
 				Title("Anthropic API Key").
-				Description("Your key is stored in ~/.config/gorecipes/config.json\nGet one at https://console.anthropic.com/").
+				Description("Your key is stored in ~/.config/enplace/config.json\nGet one at https://console.anthropic.com/").
 				Password(true).
 				Value(&apiKey).
 				Validate(func(s string) error {
