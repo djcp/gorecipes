@@ -1,6 +1,8 @@
 package db
 
 import (
+	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -70,6 +72,20 @@ func UpdateRecipeFields(db *sqlx.DB, r *models.Recipe) error {
 func DeleteRecipe(db *sqlx.DB, id int64) error {
 	_, err := db.Exec(`DELETE FROM recipes WHERE id = ?`, id)
 	return err
+}
+
+// GetRecipeByURL returns the recipe whose source_url matches url
+// (case-insensitively), or nil if no such recipe exists.
+func GetRecipeByURL(sqlDB *sqlx.DB, url string) (*models.Recipe, error) {
+	var r models.Recipe
+	err := sqlDB.Get(&r, `SELECT * FROM recipes WHERE source_url = ? COLLATE NOCASE`, url)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &r, nil
 }
 
 // GetRecipe retrieves a recipe by ID with all associations loaded.

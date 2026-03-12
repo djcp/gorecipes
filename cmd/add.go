@@ -64,6 +64,13 @@ func runAdd(_ *cobra.Command, args []string) error {
 
 	// launchFn creates the draft recipe and runs the extraction pipeline.
 	launchFn := ui.PipelineLaunchFn(func(ctx context.Context, sourceURL, sourceText string, onStep func(int, string)) (int64, error) {
+		if sourceURL != "" {
+			if existing, err := db.GetRecipeByURL(sqlDB, sourceURL); err != nil {
+				return 0, fmt.Errorf("checking for duplicate URL: %w", err)
+			} else if existing != nil {
+				return 0, fmt.Errorf("that URL was already imported as %q", existing.Name)
+			}
+		}
 		draft := &models.Recipe{
 			Status:     models.StatusDraft,
 			SourceURL:  sourceURL,
@@ -134,6 +141,11 @@ func runAdd(_ *cobra.Command, args []string) error {
 // On success it returns nil (exit 0). On failure it returns the error (exit 1,
 // cobra writes the message to stderr), and removes the orphaned draft record.
 func runAddQuiet(sourceURL string) error {
+	if existing, err := db.GetRecipeByURL(sqlDB, sourceURL); err != nil {
+		return fmt.Errorf("checking for duplicate URL: %w", err)
+	} else if existing != nil {
+		return fmt.Errorf("that URL was already imported as %q", existing.Name)
+	}
 	draft := &models.Recipe{
 		Status:    models.StatusDraft,
 		SourceURL: sourceURL,

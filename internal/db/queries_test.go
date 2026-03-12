@@ -52,6 +52,100 @@ func TestCreateAndGetRecipe(t *testing.T) {
 	}
 }
 
+func TestGetRecipeByURL_Found(t *testing.T) {
+	d := openTestDB(t)
+
+	url := "https://example.com/pasta"
+	id, err := db.CreateRecipe(d, &models.Recipe{Name: "Pasta", Status: models.StatusPublished, SourceURL: url})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := db.GetRecipeByURL(d, url)
+	if err != nil {
+		t.Fatalf("GetRecipeByURL() error: %v", err)
+	}
+	if got == nil {
+		t.Fatal("expected recipe, got nil")
+	}
+	if got.ID != id {
+		t.Errorf("ID: got %d, want %d", got.ID, id)
+	}
+}
+
+func TestGetRecipeByURL_CaseInsensitive(t *testing.T) {
+	d := openTestDB(t)
+
+	id, err := db.CreateRecipe(d, &models.Recipe{Name: "Pasta", Status: models.StatusPublished, SourceURL: "https://EXAMPLE.COM/pasta"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := db.GetRecipeByURL(d, "https://example.com/pasta")
+	if err != nil {
+		t.Fatalf("GetRecipeByURL() error: %v", err)
+	}
+	if got == nil {
+		t.Fatal("expected recipe for case-insensitive match, got nil")
+	}
+	if got.ID != id {
+		t.Errorf("ID: got %d, want %d", got.ID, id)
+	}
+}
+
+func TestGetRecipeByURL_NotFound(t *testing.T) {
+	d := openTestDB(t)
+
+	got, err := db.GetRecipeByURL(d, "https://example.com/nonexistent")
+	if err != nil {
+		t.Fatalf("GetRecipeByURL() error: %v", err)
+	}
+	if got != nil {
+		t.Errorf("expected nil for missing URL, got recipe ID %d", got.ID)
+	}
+}
+
+func TestCreateRecipe_DuplicateURL_Rejected(t *testing.T) {
+	d := openTestDB(t)
+
+	url := "https://example.com/pasta"
+	_, err := db.CreateRecipe(d, &models.Recipe{Name: "Pasta", Status: models.StatusPublished, SourceURL: url})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = db.CreateRecipe(d, &models.Recipe{Name: "Pasta 2", Status: models.StatusPublished, SourceURL: url})
+	if err == nil {
+		t.Error("expected error for duplicate URL, got nil")
+	}
+}
+
+func TestCreateRecipe_DuplicateURL_CaseInsensitive(t *testing.T) {
+	d := openTestDB(t)
+
+	_, err := db.CreateRecipe(d, &models.Recipe{Name: "Pasta", Status: models.StatusPublished, SourceURL: "https://EXAMPLE.COM/pasta"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = db.CreateRecipe(d, &models.Recipe{Name: "Pasta 2", Status: models.StatusPublished, SourceURL: "https://example.com/pasta"})
+	if err == nil {
+		t.Error("expected error for case-insensitive duplicate URL, got nil")
+	}
+}
+
+func TestCreateRecipe_EmptyURL_AllowsDuplicates(t *testing.T) {
+	d := openTestDB(t)
+
+	// Paste-mode and manual recipes have empty source_url — must be allowed in multiples.
+	_, err := db.CreateRecipe(d, &models.Recipe{Name: "Paste 1", Status: models.StatusPublished, SourceURL: ""})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = db.CreateRecipe(d, &models.Recipe{Name: "Paste 2", Status: models.StatusPublished, SourceURL: ""})
+	if err != nil {
+		t.Errorf("expected nil for second empty-URL recipe, got: %v", err)
+	}
+}
+
 func TestGetRecipe_NotFound(t *testing.T) {
 	d := openTestDB(t)
 	_, err := db.GetRecipe(d, 99999)
