@@ -12,6 +12,7 @@ import (
 	"github.com/djcp/enplace/internal/ui"
 	"github.com/djcp/enplace/internal/version"
 	"github.com/jmoiron/sqlx"
+	"github.com/pressly/goose/v3"
 	"github.com/spf13/cobra"
 )
 
@@ -60,7 +61,7 @@ func initApp() {
 		}
 	}
 
-	sqlDB, err = db.Open(cfg.DBPath)
+	sqlDB, err = db.Open(cfg.DBPath, goose.NopLogger())
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error opening database: %v\n", err)
 		os.Exit(1)
